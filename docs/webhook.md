@@ -4,19 +4,19 @@ Posts a JSON payload to a configurable URL for each new finding and daily remind
 
 No mail server required. Runs on any platform with `curl`.
 
-← [Back to overview](https://claude.ai/README.md)
+← [Back to overview](../README.md)
 
-------
+---
 
 ## Contents
 
-- [Installation](https://claude.ai/chat/58b5a0af-c96a-40c7-bbe8-bc648c79d1b1#installation)
-- [Configuration](https://claude.ai/chat/58b5a0af-c96a-40c7-bbe8-bc648c79d1b1#configuration)
-- [Payload format](https://claude.ai/chat/58b5a0af-c96a-40c7-bbe8-bc648c79d1b1#payload-format)
-- [Service examples](https://claude.ai/chat/58b5a0af-c96a-40c7-bbe8-bc648c79d1b1#service-examples)
-- [Troubleshooting](https://claude.ai/chat/58b5a0af-c96a-40c7-bbe8-bc648c79d1b1#troubleshooting)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Payload format](#payload-format)
+- [Service examples](#service-examples)
+- [Troubleshooting](#troubleshooting)
 
-------
+---
 
 ## Installation
 
@@ -51,14 +51,17 @@ mkdir -p /var/lib/check-certs
 touch /var/lib/check-certs/state
 ```
 
-Set up the cron job (Linux) or launchd job (macOS – see [docs/macos-notify.md](https://claude.ai/chat/macos-notify.md) for the launchd template approach):
+Set up the cron job (Linux) or launchd job (macOS – see [docs/macos-notify.md](macos-notify.md) for the launchd template approach):
 
 ```bash
 crontab -e
+```
+
+```
 0 7 * * * /opt/check-certs/check-certs-webhook.sh
 ```
 
-------
+---
 
 ## Configuration
 
@@ -68,16 +71,16 @@ All webhook settings go in `check-certs.conf`:
 nano /opt/check-certs/check-certs.conf
 ```
 
-| Setting                | Required | Description                                             |
-| ---------------------- | -------- | ------------------------------------------------------- |
-| `WEBHOOK_URL`          | Yes      | URL to POST payloads to                                 |
-| `WEBHOOK_AUTH_HEADER`  | No       | Authentication header name (e.g. `Authorization`)       |
-| `WEBHOOK_AUTH_VALUE`   | No       | Authentication header value (e.g. `Bearer mytoken`)     |
-| `WEBHOOK_SEND_SUMMARY` | No       | Post a summary event after all checks (default: `true`) |
+| Setting | Required | Description |
+| ------- | -------- | ----------- |
+| `WEBHOOK_URL` | Yes | URL to POST payloads to |
+| `WEBHOOK_AUTH_HEADER` | No | Authentication header name (e.g. `Authorization`) |
+| `WEBHOOK_AUTH_VALUE` | No | Authentication header value (e.g. `Bearer mytoken`) |
+| `WEBHOOK_SEND_SUMMARY` | No | Post a summary event after all checks (default: `true`) |
 
 Threshold and state settings (`WARN_DAYS`, `CRIT_DAYS`, `URGENT_DAYS`, `STATE_FILE` etc.) are shared with the other variants and work identically.
 
-------
+---
 
 ## Payload format
 
@@ -102,14 +105,14 @@ Posted once per affected server. `"event"` is `"finding"` for new issues and sta
 
 **Status values:**
 
-| Value      | Meaning                                                      |
-| ---------- | ------------------------------------------------------------ |
-| `RENEWED`  | Was expiring or unreachable, is now valid                    |
-| `WARNING`  | Expiring soon (below `WARN_DAYS`)                            |
-| `CRITICAL` | Expiring critically soon, or chain broken                    |
-| `URGENT`   | Expiring urgently soon (below `URGENT_DAYS`)                 |
-| `EXPIRED`  | Certificate has expired                                      |
-| `ERROR`    | Server unreachable or invalid port; `ca` field carries the reason |
+| Value | Meaning |
+| ----- | ------- |
+| `RENEWED` | Was expiring or unreachable, is now valid |
+| `WARNING` | Expiring soon (below `WARN_DAYS`) |
+| `CRITICAL` | Expiring critically soon, or chain broken |
+| `URGENT` | Expiring urgently soon (below `URGENT_DAYS`) |
+| `EXPIRED` | Certificate has expired |
+| `ERROR` | Server unreachable or invalid port; `ca` field carries the reason |
 
 **Chain values:** `"OK"` or a human-readable reason string such as `"certificate has expired"` or `"unable to get local issuer certificate"`.
 
@@ -131,7 +134,7 @@ Posted once at the end of each run when `WEBHOOK_SEND_SUMMARY=true` (the default
 
 Set `WEBHOOK_SEND_SUMMARY=false` in `check-certs.conf` to disable it.
 
-------
+---
 
 ## Service examples
 
@@ -161,7 +164,7 @@ ntfy.sh accepts arbitrary JSON but displays the raw body. For a nicer message, u
 WEBHOOK_URL="https://myorg.webhook.office.com/webhookb2/..."
 ```
 
-Teams expects a specific `{"text": "..."}` format. Use a custom wrapper (see [wrapper-interface.md](https://claude.ai/chat/wrapper-interface.md)) to shape the payload for Teams.
+Teams expects a specific `{"text": "..."}` format. Use a custom wrapper (see [wrapper-interface.md](wrapper-interface.md)) to shape the payload for Teams.
 
 ### Generic endpoint with Bearer token
 
@@ -179,21 +182,21 @@ WEBHOOK_AUTH_HEADER="X-API-Key"
 WEBHOOK_AUTH_VALUE="<your-api-key>"
 ```
 
-------
+---
 
 ## Troubleshooting
 
-| Problem                              | Solution                                                     |
-| ------------------------------------ | ------------------------------------------------------------ |
-| `WEBHOOK_URL is not set`             | Add `WEBHOOK_URL=...` to `check-certs.conf`                  |
-| `curl is required but not installed` | `apt install curl` or `brew install curl`                    |
-| `webhook POST returned HTTP 4xx`     | Check URL and authentication settings                        |
-| `webhook POST returned HTTP 5xx`     | Endpoint is unavailable; check-certs will retry once         |
-| No events received                   | Run manually and check output: `/opt/check-certs/check-certs-webhook.sh` |
-| Only summary received, no findings   | All certificates are OK and no state changes occurred        |
+| Problem | Solution |
+| ------- | -------- |
+| `WEBHOOK_URL is not set` | Add `WEBHOOK_URL=...` to `check-certs.conf` |
+| `curl is required but not installed` | `apt install curl` or `brew install curl` |
+| `webhook POST returned HTTP 4xx` | Check URL and authentication settings |
+| `webhook POST returned HTTP 5xx` | Endpoint is unavailable; check-certs will retry once |
+| No events received | Run manually and check output: `/opt/check-certs/check-certs-webhook.sh` |
+| Only summary received, no findings | All certificates are OK and no state changes occurred |
 
-For general certificate checking issues see [troubleshooting.md](https://claude.ai/chat/troubleshooting.md).
+For general certificate checking issues see [troubleshooting.md](troubleshooting.md).
 
-------
+---
 
-→ [Troubleshooting](https://claude.ai/chat/troubleshooting.md)
+→ [Troubleshooting](troubleshooting.md)
