@@ -210,9 +210,10 @@ echo -e "  check-certs.sh (terminal table view) will always be installed."
 echo -e "  Select one or more automation variants to install.\n"
 echo -e "  ${BOLD}1)${NC} Notifications – daily macOS notifications via launchd"
 echo -e "  ${BOLD}2)${NC} Email         – daily email, choose transport in the next step"
-echo -e "  ${BOLD}3)${NC} Webhook       – HTTP POST to Slack, ntfy, Teams, custom endpoints"
-echo -e "  ${BOLD}4)${NC} Pushover      – mobile push notifications with priority levels"
-echo -e "  ${BOLD}5)${NC} Terminal only – skip automation for now"
+echo -e "  ${BOLD}3)${NC} Webhook       – HTTP POST to Slack, ntfy, custom endpoints"
+echo -e "  ${BOLD}4)${NC} Teams         – Adaptive Card to a Microsoft Teams channel"
+echo -e "  ${BOLD}5)${NC} Pushover      – mobile push notifications with priority levels"
+echo -e "  ${BOLD}6)${NC} Terminal only – skip automation for now"
 echo ""
 echo -e "  Enter one or more numbers separated by spaces (e.g. ${BOLD}1 4${NC}):"
 read -r -p "  Choose: " VARIANT_INPUT
@@ -222,6 +223,7 @@ INSTALL_NOTIFY=false
 INSTALL_MAIL=false
 MAIL_TRANSPORT="ssmtp"
 INSTALL_WEBHOOK=false
+INSTALL_TEAMS=false
 INSTALL_PUSHOVER=false
 INSTALL_NONE=false
 
@@ -230,13 +232,15 @@ for choice in $VARIANT_INPUT; do
         1) INSTALL_NOTIFY=true   ;;
         2) INSTALL_MAIL=true     ;;
         3) INSTALL_WEBHOOK=true  ;;
-        4) INSTALL_PUSHOVER=true ;;
+        4) INSTALL_TEAMS=true    ;;
+        5) INSTALL_PUSHOVER=true ;;
         *) INSTALL_NONE=true     ;;
     esac
 done
 
 if [ "$INSTALL_NOTIFY" = false ] && [ "$INSTALL_MAIL" = false ] && \
-   [ "$INSTALL_WEBHOOK" = false ] && [ "$INSTALL_PUSHOVER" = false ]; then
+   [ "$INSTALL_WEBHOOK" = false ] && [ "$INSTALL_TEAMS" = false ] && \
+   [ "$INSTALL_PUSHOVER" = false ]; then
     INSTALL_NONE=true
 fi
 
@@ -251,6 +255,7 @@ require_file "$CONF_DIR"    "servers.conf"
 [ "$INSTALL_MAIL"     = true ] && require_file "$SRC_DIR" "check-certs-mail.sh"
 [ "$INSTALL_WEBHOOK"  = true ] && require_file "$SRC_DIR" "check-certs-webhook.sh" \
                                 && require_file "$INSTALL_DIR" "$WEBHOOK_PLIST_NAME"
+[ "$INSTALL_TEAMS"    = true ] && require_file "$SRC_DIR" "check-certs-teams.sh"
 [ "$INSTALL_PUSHOVER" = true ] && require_file "$SRC_DIR" "check-certs-pushover.sh" \
                                 && require_file "$INSTALL_DIR" "$PUSHOVER_PLIST_NAME"
 
@@ -318,6 +323,21 @@ if [ "$INSTALL_WEBHOOK" = true ]; then
 fi
 
 # Pushover
+if [ "$INSTALL_TEAMS" = true ]; then
+    echo -e "  ${BOLD}Teams variant${NC}"
+    echo ""
+    read -r -p "  Teams Workflow webhook URL: " TEAMS_WEBHOOK_URL
+    while [ -z "$TEAMS_WEBHOOK_URL" ]; do
+        echo -e "  ${RED}Please enter a webhook URL.${NC}"
+        read -r -p "  Teams Workflow webhook URL: " TEAMS_WEBHOOK_URL
+    done
+    _prompt_launch_time "Teams run time"
+    TEAMS_HOUR="$_HOUR"; TEAMS_MINUTE="$_MINUTE"
+    echo ""
+    echo "──────────────────────────────"
+    echo ""
+fi
+
 if [ "$INSTALL_PUSHOVER" = true ]; then
     echo -e "  ${BOLD}Pushover variant${NC}"
     echo ""
@@ -431,6 +451,12 @@ elif [ "$INSTALL_NONE" = false ]; then
             echo "WEBHOOK_SEND_SUMMARY=${WEBHOOK_SEND_SUMMARY}"
         fi
 
+        if [ "$INSTALL_TEAMS" = true ]; then
+            echo ""
+            echo "# ── Teams settings ──────────────────────────────────────"
+            echo "TEAMS_WEBHOOK_URL=\"${TEAMS_WEBHOOK_URL}\""
+        fi
+
         if [ "$INSTALL_PUSHOVER" = true ]; then
             echo ""
             echo "# ── Pushover settings ───────────────────────────────────"
@@ -522,6 +548,22 @@ if [ "$INSTALL_WEBHOOK" = true ]; then
     fi
 fi
 
+if [ "$INSTALL_TEAMS" = true ]; then
+    echo ""
+    echo -e "  ${BOLD}Teams variant${NC}"
+    copy_script "check-certs-teams.sh"
+    _teams_plist_dst="$HOME/Library/LaunchAgents/com.check-certs.teams.plist"
+    _teams_tmp=$(mktemp)
+    sed \
+        -e "s|com\.check-certs\.webhook|com.check-certs.teams|g" \
+        -e "s|check-certs-webhook|check-certs-teams|g" \
+        "$INSTALL_DIR/$WEBHOOK_PLIST_NAME" > "$_teams_tmp"
+    _install_plist "$_teams_tmp" "$_teams_plist_dst" \
+        "$TARGET_DIR/check-certs-teams.sh" "com.check-certs.teams" \
+        "$TEAMS_HOUR" "$TEAMS_MINUTE"
+    rm -f "$_teams_tmp"
+fi
+
 if [ "$INSTALL_PUSHOVER" = true ]; then
     echo ""
     echo -e "  ${BOLD}Pushover variant${NC}"
@@ -546,6 +588,7 @@ echo -e "  Server list:   ${BOLD}$TARGET_DIR/servers.conf${NC}"
     [ "$MAIL_TO_URGENT" != "$MAIL_TO" ] && echo -e "  Urgent to:     ${BOLD}$MAIL_TO_URGENT${NC}"
 }
 [ "$INSTALL_WEBHOOK"  = true ] && echo -e "  Webhook:       daily at ${WEBHOOK_HOUR}:$(printf '%02d' "$WEBHOOK_MINUTE") → $WEBHOOK_URL"
+[ "$INSTALL_TEAMS"    = true ] && echo -e "  Teams:         daily at ${TEAMS_HOUR}:$(printf '%02d' "$TEAMS_MINUTE")"
 [ "$INSTALL_PUSHOVER" = true ] && echo -e "  Pushover:      daily at ${PUSHOVER_HOUR}:$(printf '%02d' "$PUSHOVER_MINUTE")"
 echo ""
 echo -e "  Restart your terminal or run:"
@@ -565,6 +608,7 @@ if [ "$INSTALL_NONE" = false ]; then
     [ "$INSTALL_NOTIFY"   = true ] && echo -e "    ${BOLD}tail -f $LOG_DIR/check-certs-notify.log${NC}"
     [ "$INSTALL_MAIL"     = true ] && echo -e "    ${BOLD}tail -f $LOG_DIR/check-certs-mail.log${NC}"
     [ "$INSTALL_WEBHOOK"  = true ] && echo -e "    ${BOLD}tail -f $LOG_DIR/check-certs-webhook.log${NC}"
+    [ "$INSTALL_TEAMS"    = true ] && echo -e "    ${BOLD}tail -f $LOG_DIR/check-certs-teams.log${NC}"
     [ "$INSTALL_PUSHOVER" = true ] && echo -e "    ${BOLD}tail -f $LOG_DIR/check-certs-pushover.log${NC}"
     echo ""
 fi

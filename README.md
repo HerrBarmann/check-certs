@@ -41,6 +41,7 @@ Three optional automation variants extend it with background monitoring:
 | **Notification** | `check-certs-notify.sh` | macOS | Native notifications via launchd → [docs/macos-notify.md](docs/macos-notify.md) |
 | **Email** | `check-certs-mail.sh` | Linux + macOS | Email via Postfix, ssmtp, or sendmail, selected by `MAIL_TRANSPORT` → [docs/email.md](docs/email.md) |
 | **Webhook** | `check-certs-webhook.sh` | Any | HTTP POST to Slack, ntfy, Teams, custom endpoints → [docs/webhook.md](docs/webhook.md) |
+| **Teams** | `check-certs-teams.sh` | Any | Adaptive Card to Microsoft Teams via Workflow webhook → [docs/teams.md](docs/teams.md) |
 | **Pushover** | `check-certs-pushover.sh` | Any | Mobile push with priority levels and emergency acknowledgement → [docs/pushover.md](docs/pushover.md) |
 
 **Key features:**
@@ -258,6 +259,7 @@ Once you have `check-certs.sh` set up, you can add automated background monitori
 - 🍎 **[macOS notifications](docs/macos-notify.md)** – daily launchd job, native macOS notifications with escalation levels
 - 📧 **[Email](docs/email.md)** – daily email reports via Postfix, ssmtp, or sendmail (Linux and macOS)
 - 🌐 **[Webhook](docs/webhook.md)** – HTTP POST to Slack, ntfy.sh, Teams, Mattermost, or any custom endpoint
+- 💬 **[Teams](docs/teams.md)** – full Adaptive Card to a Microsoft Teams channel via Workflow webhook
 - 📱 **[Pushover](docs/pushover.md)** – mobile push notifications with emergency acknowledgement for iOS and Android
 - 🔧 **[Build your own wrapper](docs/wrapper-interface.md)** – full interface reference for custom delivery scripts
 
@@ -275,6 +277,7 @@ docs/
 ├── email.md               ← Email variant (Postfix, ssmtp, or sendmail, Linux + macOS)
 ├── webhook.md             ← Webhook variant
 ├── pushover.md            ← Pushover variant
+├── teams.md               ← Microsoft Teams Adaptive Card variant
 ├── wrapper-interface.md   ← Interface reference for building custom wrappers
 └── troubleshooting.md     ← Troubleshooting for all platforms
 
@@ -283,7 +286,8 @@ src/
 ├── check-certs-notify.sh        ← macOS notification variant
 ├── check-certs-mail.sh          ← Email variant (Postfix, ssmtp, or sendmail, Linux + macOS)
 ├── check-certs-webhook.sh       ← Webhook variant (HTTP POST, any platform)
-└── check-certs-pushover.sh      ← Pushover variant (mobile push, any platform)
+├── check-certs-pushover.sh      ← Pushover variant (mobile push, any platform)
+└── check-certs-teams.sh         ← Teams variant (Adaptive Card, any platform)
 
 install/
 ├── install-macos.sh             ← Installer for macOS

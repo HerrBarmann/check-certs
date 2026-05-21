@@ -57,11 +57,12 @@ fi
 echo -e "  check-certs.sh (terminal table view) will always be installed."
 echo -e "  Select one or more automation variants to install.\n"
 echo -e "  ${BOLD}1)${NC} Email    – daily cron job, choose transport in the next step"
-echo -e "  ${BOLD}2)${NC} Webhook  – HTTP POST to Slack, ntfy, Teams, custom endpoints"
-echo -e "  ${BOLD}3)${NC} Pushover – mobile push notifications with priority levels"
-echo -e "  ${BOLD}4)${NC} Terminal only – skip automation for now"
+echo -e "  ${BOLD}2)${NC} Webhook  – HTTP POST to Slack, ntfy, custom endpoints"
+echo -e "  ${BOLD}3)${NC} Teams    – Adaptive Card to a Microsoft Teams channel"
+echo -e "  ${BOLD}4)${NC} Pushover – mobile push notifications with priority levels"
+echo -e "  ${BOLD}5)${NC} Terminal only – skip automation for now"
 echo ""
-echo -e "  Enter one or more numbers separated by spaces (e.g. ${BOLD}1 3${NC}):"
+echo -e "  Enter one or more numbers separated by spaces (e.g. ${BOLD}1 3 4${NC}):"
 read -r -p "  Choose: " VARIANT_INPUT
 echo ""
 
@@ -97,6 +98,12 @@ echo ""
 [ "$INSTALL_WEBHOOK" = true ] && {
     if [ ! -f "$SRC_DIR/check-certs-webhook.sh" ]; then
         echo -e "${RED}✗ File 'check-certs-webhook.sh' not found (expected in: $SRC_DIR)${NC}"
+        exit 1
+    fi
+}
+[ "$INSTALL_TEAMS" = true ] && {
+    if [ ! -f "$SRC_DIR/check-certs-teams.sh" ]; then
+        echo -e "${RED}✗ File 'check-certs-teams.sh' not found (expected in: $SRC_DIR)${NC}"
         exit 1
     fi
 }
@@ -268,6 +275,23 @@ if [ "$INSTALL_WEBHOOK" = true ]; then
     echo ""
 fi
 
+# Teams-specific prompts
+if [ "$INSTALL_TEAMS" = true ]; then
+    echo -e "  ${BOLD}Teams variant${NC}"
+    echo ""
+    read -r -p "  Teams Workflow webhook URL: " TEAMS_WEBHOOK_URL
+    while [ -z "$TEAMS_WEBHOOK_URL" ]; do
+        echo -e "  ${RED}Please enter a webhook URL.${NC}"
+        read -r -p "  Teams Workflow webhook URL: " TEAMS_WEBHOOK_URL
+    done
+    _prompt_cron_time "Teams cron job"
+    TEAMS_CRON_HOUR="$_HOUR"
+    TEAMS_CRON_MINUTE="$_MINUTE"
+    echo ""
+    echo "──────────────────────────────"
+    echo ""
+fi
+
 # Pushover-specific prompts
 if [ "$INSTALL_PUSHOVER" = true ]; then
     echo -e "  ${BOLD}Pushover variant${NC}"
@@ -325,7 +349,7 @@ if [ -n "$INSTALL_MAIL" ]; then
     esac
 fi
 
-if [ "$INSTALL_WEBHOOK" = true ] || [ "$INSTALL_PUSHOVER" = true ]; then
+if [ "$INSTALL_WEBHOOK" = true ] || [ "$INSTALL_TEAMS" = true ] || [ "$INSTALL_PUSHOVER" = true ]; then
     echo "  Installing curl..."
     apt-get install -y -qq curl
     echo -e "${GREEN}✓ curl installed${NC}"
@@ -427,6 +451,11 @@ done
     chmod +x "$TARGET_DIR/check-certs-webhook.sh"
     echo -e "${GREEN}✓ check-certs-webhook.sh installed${NC}"
 }
+[ "$INSTALL_TEAMS" = true ] && {
+    cp "$SRC_DIR/check-certs-teams.sh" "$TARGET_DIR/check-certs-teams.sh"
+    chmod +x "$TARGET_DIR/check-certs-teams.sh"
+    echo -e "${GREEN}✓ check-certs-teams.sh installed${NC}"
+}
 [ "$INSTALL_PUSHOVER" = true ] && {
     cp "$SRC_DIR/check-certs-pushover.sh" "$TARGET_DIR/check-certs-pushover.sh"
     chmod +x "$TARGET_DIR/check-certs-pushover.sh"
@@ -470,6 +499,12 @@ elif [ "$INSTALL_NONE" = false ]; then
             echo "WEBHOOK_SEND_SUMMARY=${WEBHOOK_SEND_SUMMARY}"
         fi
 
+        if [ "$INSTALL_TEAMS" = true ]; then
+            echo ""
+            echo "# ── Teams settings ──────────────────────────────────────"
+            echo "TEAMS_WEBHOOK_URL=\"${TEAMS_WEBHOOK_URL}\""
+        fi
+
         if [ "$INSTALL_PUSHOVER" = true ]; then
             echo ""
             echo "# ── Pushover settings ───────────────────────────────────"
@@ -494,6 +529,7 @@ if [ "$INSTALL_NONE" = false ]; then
     mkdir -p /var/lib/check-certs
     [ -n "$INSTALL_MAIL"         ] && touch /var/lib/check-certs/state-mail
     [ "$INSTALL_WEBHOOK" = true  ] && touch /var/lib/check-certs/state-webhook
+    [ "$INSTALL_TEAMS" = true    ] && touch /var/lib/check-certs/state-teams
     [ "$INSTALL_PUSHOVER" = true ] && touch /var/lib/check-certs/state-pushover
     echo -e "${GREEN}✓ State directory created: /var/lib/check-certs/${NC}"
 fi
@@ -510,6 +546,7 @@ _add_cron() {
 
 [ -n "$INSTALL_MAIL"         ] && _add_cron "check-certs-mail.sh"     "$MAIL_CRON_HOUR"     "$MAIL_CRON_MINUTE"
 [ "$INSTALL_WEBHOOK" = true  ] && _add_cron "check-certs-webhook.sh"  "$WEBHOOK_CRON_HOUR"  "$WEBHOOK_CRON_MINUTE"
+[ "$INSTALL_TEAMS" = true    ] && _add_cron "check-certs-teams.sh"    "$TEAMS_CRON_HOUR"    "$TEAMS_CRON_MINUTE"
 [ "$INSTALL_PUSHOVER" = true ] && _add_cron "check-certs-pushover.sh" "$PUSHOVER_CRON_HOUR" "$PUSHOVER_CRON_MINUTE"
 
 # ── Test sends ───────────────────────────────────────────────
