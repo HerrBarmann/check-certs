@@ -27,12 +27,13 @@ source "$CORE"
 configure_wrapper
 
 # ── State file default for this variant ──────────────────────
-# Default differs by platform; installers always set this explicitly.
+# Default to a variant-specific state file so multiple variants can
+# coexist without interfering with each other's escalation tracking.
 if [ -z "${STATE_FILE:-}" ]; then
     if [[ "$(uname)" == "Darwin" ]]; then
-        STATE_FILE="$HOME/Library/Application Support/check-certs/state"
+        STATE_FILE="$HOME/Library/Application Support/check-certs/state-webhook"
     else
-        STATE_FILE="/var/lib/check-certs/state"
+        STATE_FILE="/var/lib/check-certs/state-webhook"
     fi
 fi
 state_init

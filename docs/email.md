@@ -136,7 +136,6 @@ URGENT_DAYS=2
 TIMEOUT=5
 MAX_JOBS=10
 CA_MAX_LEN=30
-STATE_FILE=/var/lib/check-certs/state
 MAIL_TRANSPORT=postfix
 MAIL_TO=admin@example.com
 MAIL_TO_URGENT=admin@example.com
@@ -208,7 +207,6 @@ URGENT_DAYS=2
 TIMEOUT=5
 MAX_JOBS=10
 CA_MAX_LEN=30
-STATE_FILE=/var/lib/check-certs/state
 MAIL_TRANSPORT=ssmtp
 MAIL_TO=admin@example.com
 MAIL_TO_URGENT=admin@example.com
@@ -252,7 +250,7 @@ nano /opt/check-certs/check-certs.conf
 # Single server
 sed -i '/hostname\.example\.com/d' /var/lib/check-certs/state
 # All servers
-> /var/lib/check-certs/state
+> /var/lib/check-certs/state-mail
 ```
 
 **Change cron job time:** Open the crontab and update the entry to your preferred time:

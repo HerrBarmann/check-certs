@@ -62,7 +62,7 @@ nano ~/scripts/check-certs/check-certs.conf
 WARN_DAYS=15
 CRIT_DAYS=7
 URGENT_DAYS=2
-STATE_FILE="$HOME/Library/Application Support/check-certs/state"
+STATE_FILE="$HOME/Library/Application Support/check-certs/state-notify"
 ```
 
 Set up the launchd job:

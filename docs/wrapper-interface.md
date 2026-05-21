@@ -81,7 +81,7 @@ the variable only if it is not already set:
 
 ```bash
 configure_wrapper
-: "${STATE_FILE:=/var/lib/my-wrapper/state}"   # wins over check-certs.conf
+: "${STATE_FILE:=/var/lib/my-wrapper/state-mywrapper}"   # wins over check-certs.conf
 ```
 
 **Available variables:**
@@ -89,7 +89,7 @@ configure_wrapper
 | Variable | Default | Description |
 | -------- | ------- | ----------- |
 | `SERVER_FILE` | `./servers.conf` | Path to the server list |
-| `STATE_FILE` | *(empty)* | Path to the state file. Empty string disables state tracking entirely |
+| `STATE_FILE` | *(variant default)* | Path to the state file. Each built-in variant defaults to its own named file (e.g. `state-mail`). Empty string disables state tracking entirely |
 | `WARN_DAYS` | `15` | Days remaining below which `WARNING` is triggered |
 | `CRIT_DAYS` | `7` | Days remaining below which `CRITICAL` is triggered |
 | `URGENT_DAYS` | `2` | Days remaining below which `URGENT` is triggered. `0` disables the URGENT level |
@@ -418,7 +418,7 @@ source "$CORE"
 # 2. Configure – set STATE_FILE after configure_wrapper so it wins over
 #    any value in check-certs.conf
 configure_wrapper
-: "${STATE_FILE:=/var/lib/my-wrapper/state}"
+: "${STATE_FILE:=/var/lib/my-wrapper/state-mywrapper}"
 state_init
 
 # 3. Internal helpers

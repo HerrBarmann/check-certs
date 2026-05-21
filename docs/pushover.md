@@ -72,7 +72,6 @@ URGENT_DAYS=2
 TIMEOUT=5
 MAX_JOBS=10
 CA_MAX_LEN=30
-STATE_FILE=/var/lib/check-certs/state
 PUSHOVER_APP_TOKEN="your-app-token"
 PUSHOVER_USER_KEY="your-user-key"
 CONF
@@ -111,7 +110,6 @@ URGENT_DAYS=2
 TIMEOUT=5
 MAX_JOBS=10
 CA_MAX_LEN=30
-STATE_FILE="$HOME/Library/Application Support/check-certs/state"
 LOG_FILE="$HOME/Library/Logs/check-certs/check-certs-pushover.log"
 PUSHOVER_APP_TOKEN="your-app-token"
 PUSHOVER_USER_KEY="your-user-key"
@@ -222,10 +220,10 @@ PUSHOVER_EXPIRE=7200  # Give up after 2 hours
 
 ```bash
 # Linux
-> /var/lib/check-certs/state
+> /var/lib/check-certs/state-pushover
 
 # macOS
-> "$HOME/Library/Application Support/check-certs/state"
+> "$HOME/Library/Application Support/check-certs/state-pushover"
 ```
 
 ---
