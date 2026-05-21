@@ -177,7 +177,7 @@ _starttls_proto() {
 
     # No explicit proto – auto-detect by port number
     case "$port" in
-        25|587|465) echo "smtp" ;;
+        25|587)     echo "smtp" ;;
         143)        echo "imap" ;;
         110)        echo "pop3" ;;
         389)        echo "ldap" ;;
@@ -574,7 +574,7 @@ if [[ "$1" == "--help" || "$1" == "-h" ]]; then
     printf "  ${BOLD}Protocols:${NC}\n"
     printf "    STARTTLS: ${DIM}smtp submission imap pop3 ldap ftp xmpp${NC}\n"
     printf "    Plain TLS aliases: ${DIM}tls https ldaps imaps pop3s smtps ftps${NC}\n"
-    printf "    Auto-detected: 25/465/587→smtp  143→imap  110→pop3\n"
+    printf "    Auto-detected: 25/587→smtp  143→imap  110→pop3\n"
     printf "                   389→ldap  21→ftp  5222→xmpp\n"
     printf "\n"
     printf "  ${BOLD}Thresholds${NC} (set in check-certs.conf):\n"

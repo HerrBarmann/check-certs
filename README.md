@@ -6,27 +6,27 @@ check-certs is a certificate monitoring tool that watches expiry dates across al
 
 No more surprise expirations. No more embarrassing phone calls. Just certificates, quietly minding their own deadlines.
 
-------
+---
 
 ## Contents
 
-- [Overview](https://claude.ai/chat/58b5a0af-c96a-40c7-bbe8-bc648c79d1b1#overview)
-- [Installation](https://claude.ai/chat/58b5a0af-c96a-40c7-bbe8-bc648c79d1b1#installation)
-  - [macOS](https://claude.ai/chat/58b5a0af-c96a-40c7-bbe8-bc648c79d1b1#macos)
-  - [Linux](https://claude.ai/chat/58b5a0af-c96a-40c7-bbe8-bc648c79d1b1#linux)
-- [Server configuration](https://claude.ai/chat/58b5a0af-c96a-40c7-bbe8-bc648c79d1b1#server-configuration)
-- [Configuration](https://claude.ai/chat/58b5a0af-c96a-40c7-bbe8-bc648c79d1b1#configuration)
-- [Usage](https://claude.ai/chat/58b5a0af-c96a-40c7-bbe8-bc648c79d1b1#usage)
-- [Output](https://claude.ai/chat/58b5a0af-c96a-40c7-bbe8-bc648c79d1b1#output)
-- [How it works](https://claude.ai/chat/58b5a0af-c96a-40c7-bbe8-bc648c79d1b1#how-it-works)
-- [Adjusting thresholds](https://claude.ai/chat/58b5a0af-c96a-40c7-bbe8-bc648c79d1b1#adjusting-thresholds)
-- [Background monitoring](https://claude.ai/chat/58b5a0af-c96a-40c7-bbe8-bc648c79d1b1#background-monitoring)
-- [Files](https://claude.ai/chat/58b5a0af-c96a-40c7-bbe8-bc648c79d1b1#files)
-- [Troubleshooting](https://claude.ai/chat/58b5a0af-c96a-40c7-bbe8-bc648c79d1b1#troubleshooting)
-- [Contributing](https://claude.ai/chat/58b5a0af-c96a-40c7-bbe8-bc648c79d1b1#contributing)
-- [Licence](https://claude.ai/chat/58b5a0af-c96a-40c7-bbe8-bc648c79d1b1#licence)
+- [Overview](#overview)
+- [Installation](#installation)
+  - [macOS](#macos)
+  - [Linux](#linux)
+- [Server configuration](#server-configuration)
+- [Configuration](#configuration)
+- [Usage](#usage)
+- [Output](#output)
+- [How it works](#how-it-works)
+- [Adjusting thresholds](#adjusting-thresholds)
+- [Background monitoring](#background-monitoring)
+- [Files](#files)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [Licence](#licence)
 
-------
+---
 
 ## Overview
 
@@ -36,12 +36,12 @@ check-certs consists of `check-certs.sh` and the automation variants built on to
 
 Three optional automation variants extend it with background monitoring:
 
-| Variant          | Script                    | Platform      | Details                                                      |
-| ---------------- | ------------------------- | ------------- | ------------------------------------------------------------ |
-| **Notification** | `check-certs-notify.sh`   | macOS         | Native notifications via launchd → [docs/macos-notify.md](https://claude.ai/chat/docs/macos-notify.md) |
-| **Email**        | `check-certs-mail.sh`     | Debian/Ubuntu | Email via Postfix, ssmtp, or sendmail, selected by `MAIL_TRANSPORT` → [docs/linux-email.md](https://claude.ai/chat/docs/linux-email.md) |
-| **Webhook**      | `check-certs-webhook.sh`  | Any           | HTTP POST to Slack, ntfy, Teams, custom endpoints → [docs/webhook.md](https://claude.ai/chat/docs/webhook.md) |
-| **Pushover**     | `check-certs-pushover.sh` | Any           | Mobile push with priority levels and emergency acknowledgement → [docs/pushover.md](https://claude.ai/chat/docs/pushover.md) |
+| Variant | Script | Platform | Details |
+| ------- | ------ | -------- | ------- |
+| **Notification** | `check-certs-notify.sh` | macOS | Native notifications via launchd → [docs/macos-notify.md](docs/macos-notify.md) |
+| **Email** | `check-certs-mail.sh` | Debian/Ubuntu | Email via Postfix, ssmtp, or sendmail, selected by `MAIL_TRANSPORT` → [docs/linux-email.md](docs/linux-email.md) |
+| **Webhook** | `check-certs-webhook.sh` | Any | HTTP POST to Slack, ntfy, Teams, custom endpoints → [docs/webhook.md](docs/webhook.md) |
+| **Pushover** | `check-certs-pushover.sh` | Any | Mobile push with priority levels and emergency acknowledgement → [docs/pushover.md](docs/pushover.md) |
 
 **Key features:**
 
@@ -50,7 +50,7 @@ Three optional automation variants extend it with background monitoring:
 - **State tracking** ensures you only get notified when something changes, not on every daily run
 - **Escalation levels** with distinct behaviour at warning, critical and urgent thresholds
 
-------
+---
 
 ## Installation
 
@@ -75,7 +75,7 @@ echo 'alias check-certs="$HOME/scripts/check-certs/check-certs.sh"' >> ~/.zshrc
 source ~/.zshrc
 ```
 
-To add background monitoring after a manual install see [docs/macos-notify.md](https://claude.ai/chat/docs/macos-notify.md), [docs/webhook.md](https://claude.ai/chat/docs/webhook.md), or [docs/pushover.md](https://claude.ai/chat/docs/pushover.md).
+To add background monitoring after a manual install see [docs/macos-notify.md](docs/macos-notify.md), [docs/webhook.md](docs/webhook.md), or [docs/pushover.md](docs/pushover.md).
 
 ### Linux
 
@@ -100,9 +100,9 @@ echo 'alias check-certs="$HOME/scripts/check-certs/check-certs.sh"' >> ~/.bashrc
 source ~/.bashrc
 ```
 
-To add background monitoring after a manual install see [docs/linux-email.md](https://claude.ai/chat/docs/linux-email.md), [docs/webhook.md](https://claude.ai/chat/docs/webhook.md), or [docs/pushover.md](https://claude.ai/chat/docs/pushover.md).
+To add background monitoring after a manual install see [docs/linux-email.md](docs/linux-email.md), [docs/webhook.md](docs/webhook.md), or [docs/pushover.md](docs/pushover.md).
 
-------
+---
 
 ## Server configuration
 
@@ -132,17 +132,18 @@ custom.example.com:8443:tls
 
 **Entry format:** `hostname:port` or `hostname:port:proto`
 
-STARTTLS is automatically applied on standard ports. Use the optional `:proto` field to override detection or to force plain TLS on a non-standard port.
+STARTTLS is automatically applied on standard ports. Use the optional `:proto`
+field to override detection or to force plain TLS on a non-standard port.
 
-| Port(s)      | Auto-detected protocol |
-| ------------ | ---------------------- |
-| 25, 465, 587 | `smtp`                 |
-| 143          | `imap`                 |
-| 110          | `pop3`                 |
-| 389          | `ldap`                 |
-| 21           | `ftp`                  |
-| 5222         | `xmpp`                 |
-| all others   | plain TLS              |
+| Port(s) | Auto-detected protocol |
+| ------- | ---------------------- |
+| 25, 587 | `smtp` |
+| 143 | `imap` |
+| 110 | `pop3` |
+| 389 | `ldap` |
+| 21 | `ftp` |
+| 5222 | `xmpp` |
+| all others | plain TLS |
 
 STARTTLS protocols: `smtp` `submission` `imap` `pop3` `ldap` `ftp` `xmpp`
 
@@ -150,7 +151,7 @@ Plain TLS aliases (self-documenting, no STARTTLS): `tls` `https` `ldaps` `imaps`
 
 > An existing `servers.conf` is **never overwritten** during reinstallation.
 
-------
+---
 
 ## Configuration
 
@@ -163,22 +164,22 @@ nano /opt/check-certs/check-certs.conf         # Linux
 
 Key settings:
 
-| Setting          | Default   | Description                                                  |
-| ---------------- | --------- | ------------------------------------------------------------ |
-| `WARN_DAYS`      | `15`      | First warning X days before expiry                           |
-| `CRIT_DAYS`      | `7`       | Daily reminder from X days before expiry                     |
-| `URGENT_DAYS`    | `2`       | Urgent alert from X days (0 = disabled)                      |
-| `TIMEOUT`        | `5`       | Connection timeout per server in seconds                     |
-| `MAX_JOBS`       | `10`      | Maximum parallel checks                                      |
+| Setting | Default | Description |
+| ------- | ------- | ----------- |
+| `WARN_DAYS` | `15` | First warning X days before expiry |
+| `CRIT_DAYS` | `7` | Daily reminder from X days before expiry |
+| `URGENT_DAYS` | `2` | Urgent alert from X days (0 = disabled) |
+| `TIMEOUT` | `5` | Connection timeout per server in seconds |
+| `MAX_JOBS` | `10` | Maximum parallel checks |
 | `MAIL_TRANSPORT` | `postfix` | Email transport: `postfix`, `ssmtp`, or `sendmail` (email variant) |
-| `MAIL_TO`        | –         | Primary email recipient (email variant)                      |
-| `MAIL_TO_URGENT` | –         | Second recipient for urgent alerts (email variant)           |
-| `MAIL_FROM`      | –         | Sender address (email variant)                               |
-| `WEBHOOK_URL`    | –         | URL to POST findings to (webhook variant)                    |
+| `MAIL_TO` | – | Primary email recipient (email variant) |
+| `MAIL_TO_URGENT` | – | Second recipient for urgent alerts (email variant) |
+| `MAIL_FROM` | – | Sender address (email variant) |
+| `WEBHOOK_URL` | – | URL to POST findings to (webhook variant) |
 
 > An existing `check-certs.conf` is **never overwritten** during reinstallation.
 
-------
+---
 
 ## Usage
 
@@ -193,7 +194,7 @@ check-certs --version                # Show version
 check-certs --help                   # Show help
 ```
 
-------
+---
 
 ## Output
 
@@ -215,16 +216,16 @@ Colour-coded table in the terminal, grouped by sections from `servers.conf`:
   Summary:  4 servers checked  │  ✓ 1 OK  │  ⚠ 1 Warning  │  ✗ 2 Critical/Error
 ```
 
-| Colour        | Condition               | Meaning                   |
-| ------------- | ----------------------- | ------------------------- |
-| 🟢 Green       | ≥ `WARN_DAYS` remaining | All good                  |
-| 🟡 Yellow      | < `WARN_DAYS` remaining | Renew soon                |
-| 🔴 Red         | < `CRIT_DAYS` remaining | Immediate action required |
-| 🔴 Red / ERROR | –                       | Server unreachable        |
+| Colour | Condition | Meaning |
+| ------ | --------- | ------- |
+| 🟢 Green | ≥ `WARN_DAYS` remaining | All good |
+| 🟡 Yellow | < `WARN_DAYS` remaining | Renew soon |
+| 🔴 Red | < `CRIT_DAYS` remaining | Immediate action required |
+| 🔴 Red / ERROR | – | Server unreachable |
 
 The **"Issued by"** column shows the CN value from the certificate issuer (e.g. `R11` for Let's Encrypt, `GEANT TLS RSA 1` for GÉANT), falling back to the O value if CN is absent. A `⚠chain` suffix indicates a broken certificate chain even if the leaf certificate itself is still valid.
 
-------
+---
 
 ## How it works
 
@@ -232,7 +233,7 @@ All servers are checked in parallel (up to 10 concurrent connections by default)
 
 The concurrency limit (`MAX_JOBS` in `check-certs.conf`) prevents resource spikes on large server lists. Reduce it if running on a constrained host, increase it if you have many servers and want faster results.
 
-------
+---
 
 ## Adjusting thresholds
 
@@ -240,24 +241,27 @@ Edit `check-certs.conf` in the installation directory:
 
 ```bash
 nano ~/scripts/check-certs/check-certs.conf
+```
+
+```bash
 WARN_DAYS=15    # Yellow below this number of remaining days
 CRIT_DAYS=7     # Red below this threshold
 URGENT_DAYS=2   # 0 disables the urgent level
 ```
 
-------
+---
 
 ## Background monitoring
 
 Once you have `check-certs.sh` set up, you can add automated background monitoring:
 
-- 🍎 **[macOS notifications](https://claude.ai/chat/docs/macos-notify.md)** – daily launchd job, native macOS notifications with escalation levels
-- 🖥️ **[Linux email](https://claude.ai/chat/docs/linux-email.md)** – daily cron job, email reports via Postfix, ssmtp, or sendmail
-- 🌐 **[Webhook](https://claude.ai/chat/docs/webhook.md)** – HTTP POST to Slack, ntfy.sh, Teams, Mattermost, or any custom endpoint
-- 📱 **[Pushover](https://claude.ai/chat/docs/pushover.md)** – mobile push notifications with emergency acknowledgement for iOS and Android
-- 🔧 **[Build your own wrapper](https://claude.ai/chat/docs/wrapper-interface.md)** – full interface reference for custom delivery scripts
+- 🍎 **[macOS notifications](docs/macos-notify.md)** – daily launchd job, native macOS notifications with escalation levels
+- 🖥️ **[Linux email](docs/linux-email.md)** – daily cron job, email reports via Postfix, ssmtp, or sendmail
+- 🌐 **[Webhook](docs/webhook.md)** – HTTP POST to Slack, ntfy.sh, Teams, Mattermost, or any custom endpoint
+- 📱 **[Pushover](docs/pushover.md)** – mobile push notifications with emergency acknowledgement for iOS and Android
+- 🔧 **[Build your own wrapper](docs/wrapper-interface.md)** – full interface reference for custom delivery scripts
 
-------
+---
 
 ## Files
 
@@ -294,25 +298,25 @@ config/
 └── check-certs.conf             ← Configuration file (all settings)
 ```
 
-------
+---
 
 ## Troubleshooting
 
-| Error                           | Solution                                                     |
-| ------------------------------- | ------------------------------------------------------------ |
-| `check-certs.sh not found`      | Script is not in the same directory as the calling wrapper   |
-| *"Server file not found"*       | Check `SERVER_FILE` in `check-certs.conf` or verify `servers.conf` exists |
-| *"Unreachable"*                 | `openssl s_client -connect hostname:port </dev/null`         |
-| *"Invalid format"*              | Separator in `servers.conf` must be `:`, not `,`             |
-| CA shows "Unknown"              | `openssl s_client -connect hostname:port </dev/null 2>/dev/null | openssl x509 -noout -issuer` |
-| Chain always shows invalid      | Verify SNI: `openssl s_client -connect hostname:port -servername hostname </dev/null` |
-| *"gdate: command not found"*    | macOS only: `brew install coreutils`                         |
-| *"Homebrew not found"*          | `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"` |
-| `check-certs` command not found | Run `source ~/.zshrc` (macOS) or `source ~/.bashrc` (Linux)  |
+| Error | Solution |
+| ----- | -------- |
+| `check-certs.sh not found` | Script is not in the same directory as the calling wrapper |
+| *"Server file not found"* | Check `SERVER_FILE` in `check-certs.conf` or verify `servers.conf` exists |
+| *"Unreachable"* | `openssl s_client -connect hostname:port </dev/null` |
+| *"Invalid format"* | Separator in `servers.conf` must be `:`, not `,` |
+| CA shows "Unknown" | `openssl s_client -connect hostname:port </dev/null 2>/dev/null \| openssl x509 -noout -issuer` |
+| Chain always shows invalid | Verify SNI: `openssl s_client -connect hostname:port -servername hostname </dev/null` |
+| *"gdate: command not found"* | macOS only: `brew install coreutils` |
+| *"Homebrew not found"* | `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"` |
+| `check-certs` command not found | Run `source ~/.zshrc` (macOS) or `source ~/.bashrc` (Linux) |
 
-For notification, email and webhook specific errors see [docs/troubleshooting.md](https://claude.ai/chat/docs/troubleshooting.md).
+For notification, email and webhook specific errors see [docs/troubleshooting.md](docs/troubleshooting.md).
 
-------
+---
 
 ## Contributing
 
@@ -320,4 +324,4 @@ Contributions are welcome. Please open an issue before starting work on a larger
 
 ## Licence
 
-MIT – see [LICENSE](https://claude.ai/chat/LICENSE) for the full text.
+MIT – see [LICENSE](LICENSE) for the full text.
