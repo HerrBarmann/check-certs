@@ -1,0 +1,58 @@
+# ============================================================
+#  check-certs logrotate configuration
+#
+#  NOTE: The Linux email variants (check-certs-mail.sh and
+#  check-certs-mail.sh) write to syslog via 'logger',
+#  not to log files. Their output appears in journald and can
+#  be viewed with: journalctl -t check-certs
+#
+#  This logrotate config applies only if you configure the
+#  cron wrappers to write to a log file by redirecting output
+#  in the cron job, for example:
+#    0 7 * * * /opt/check-certs/check-certs-mail.sh \
+#              >> /var/log/check-certs/check-certs-mail.log 2>&1
+#
+#  Create the log directory first:
+#    sudo mkdir -p /var/log/check-certs
+#
+#  Then install this file:
+#    sudo cp install/check-certs.logrotate /etc/logrotate.d/check-certs
+# ============================================================
+
+/var/log/check-certs/*.log {
+    # Rotate weekly
+    weekly
+
+    # Keep 8 weeks of logs
+    rotate 8
+
+    # Compress rotated logs
+    compress
+    delaycompress
+
+    # Don't error if log file is missing
+    missingok
+
+    # Don't rotate empty logs
+    notifempty
+
+    # Add date to rotated filename (e.g. check-certs-mail.log-20260518)
+    dateext
+    dateformat -%Y%m%d
+
+    # Create new log file after rotation
+    create 640 root root
+}
+
+# ── macOS note ───────────────────────────────────────────────
+# The notification variant writes logs to:
+#   ~/Library/Logs/check-certs/check-certs-notify.log
+#
+# macOS does not use logrotate. To rotate this log manually,
+# add the following to your crontab (e.g. every Sunday at 06:00):
+#
+#   0 6 * * 0 find ~/Library/Logs/check-certs -name "*.log" \
+#     -size +5M -exec gzip {} \; -exec touch {}.new \;
+#
+# Or simply let the file grow – at one short line per server
+# per day it takes years to become problematic.

@@ -1,0 +1,26 @@
+# ── State and logs ───────────────────────────────────────────
+# These are generated at runtime and should never be committed
+state
+*.log
+*.error.log
+
+# ── macOS system files ────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ── Generated launchd plist ───────────────────────────────────
+# The template is committed; the filled-in version installed by
+# install-macos.sh is not
+com.check-certs.notify.plist.generated
+
+# ── Editor and IDE ────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── Test scratch files ────────────────────────────────────────
+scratch/
+tmp/

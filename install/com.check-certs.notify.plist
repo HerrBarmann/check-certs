@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+
+    <!-- Unique job identifier -->
+    <key>Label</key>
+    <string>com.check-certs.notify</string>
+
+    <!-- Path to script – set automatically by install-macos.sh -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>SCRIPT_PATH_PLACEHOLDER</string>
+    </array>
+
+    <!-- Daily execution time – set automatically by install-macos.sh -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>HOUR_PLACEHOLDER</integer>
+        <key>Minute</key>
+        <integer>MINUTE_PLACEHOLDER</integer>
+    </dict>
+
+    <!-- Write output to log files -->
+    <key>StandardOutPath</key>
+    <string>LOGDIR_PLACEHOLDER/check-certs-notify.log</string>
+    <key>StandardErrorPath</key>
+    <string>LOGDIR_PLACEHOLDER/check-certs-notify.error.log</string>
+
+    <!-- Do not run immediately when loaded -->
+    <key>RunAtLoad</key>
+    <false/>
+
+</dict>
+</plist>
