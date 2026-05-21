@@ -75,7 +75,7 @@ echo 'alias check-certs="$HOME/scripts/check-certs/check-certs.sh"' >> ~/.zshrc
 source ~/.zshrc
 ```
 
-To add background monitoring after a manual install see [docs/macos-notify.md](https://claude.ai/chat/docs/macos-notify.md) or [docs/webhook.md](https://claude.ai/chat/docs/webhook.md).
+To add background monitoring after a manual install see [docs/macos-notify.md](https://claude.ai/chat/docs/macos-notify.md), [docs/webhook.md](https://claude.ai/chat/docs/webhook.md), or [docs/pushover.md](https://claude.ai/chat/docs/pushover.md).
 
 ### Linux
 
@@ -100,7 +100,7 @@ echo 'alias check-certs="$HOME/scripts/check-certs/check-certs.sh"' >> ~/.bashrc
 source ~/.bashrc
 ```
 
-To add background monitoring after a manual install see [docs/linux-email.md](https://claude.ai/chat/docs/linux-email.md) or [docs/webhook.md](https://claude.ai/chat/docs/webhook.md).
+To add background monitoring after a manual install see [docs/linux-email.md](https://claude.ai/chat/docs/linux-email.md), [docs/webhook.md](https://claude.ai/chat/docs/webhook.md), or [docs/pushover.md](https://claude.ai/chat/docs/pushover.md).
 
 ------
 
