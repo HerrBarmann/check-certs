@@ -675,7 +675,7 @@ on_cert_result() {
     local color icon text
 
     case "$status" in
-        EXPIRED)         color="$RED";    icon="✗"; text="${days_left}d (expired!)"; crit=$((crit+1)) ;;
+        EXPIRED)         color="$RED";    icon="✗"; text="EXP -${days_left#-}d";    crit=$((crit+1)) ;;
         URGENT|CRITICAL) color="$RED";    icon="✗"; text="${days_left}d";            crit=$((crit+1)) ;;
         WARNING)         color="$YELLOW"; icon="⚠"; text="${days_left}d";            warn=$((warn+1)) ;;
         *)               color="$GREEN";  icon="✓"; text="${days_left}d";            ok=$((ok+1))   ;;
