@@ -37,9 +37,9 @@ configure_wrapper
 # ── State file default for this variant ──────────────────────
 if [ -z "${STATE_FILE:-}" ]; then
     if [[ "$(uname)" == "Darwin" ]]; then
-        STATE_FILE="$HOME/Library/Application Support/check-certs/state"
+        STATE_FILE="$HOME/Library/Application Support/check-certs/state-pushover"
     else
-        STATE_FILE="/var/lib/check-certs/state"
+        STATE_FILE="/var/lib/check-certs/state-pushover"
     fi
 fi
 state_init

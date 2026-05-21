@@ -39,7 +39,7 @@ Three optional automation variants extend it with background monitoring:
 | Variant | Script | Platform | Details |
 | ------- | ------ | -------- | ------- |
 | **Notification** | `check-certs-notify.sh` | macOS | Native notifications via launchd → [docs/macos-notify.md](docs/macos-notify.md) |
-| **Email** | `check-certs-mail.sh` | Debian/Ubuntu | Email via Postfix, ssmtp, or sendmail, selected by `MAIL_TRANSPORT` → [docs/linux-email.md](docs/linux-email.md) |
+| **Email** | `check-certs-mail.sh` | Linux + macOS | Email via Postfix, ssmtp, or sendmail, selected by `MAIL_TRANSPORT` → [docs/email.md](docs/email.md) |
 | **Webhook** | `check-certs-webhook.sh` | Any | HTTP POST to Slack, ntfy, Teams, custom endpoints → [docs/webhook.md](docs/webhook.md) |
 | **Pushover** | `check-certs-pushover.sh` | Any | Mobile push with priority levels and emergency acknowledgement → [docs/pushover.md](docs/pushover.md) |
 
@@ -58,7 +58,7 @@ Three optional automation variants extend it with background monitoring:
 
 **Requires:** Homebrew (`coreutils` and `openssl` are installed automatically).
 
-**Automatic** – installs `check-certs.sh`, sets up the alias, and optionally configures a notification, webhook, or Pushover variant via launchd:
+**Automatic** – installs `check-certs.sh`, sets up the alias, and optionally configures one or more automation variants (notifications, email, webhook, Pushover) via launchd:
 
 ```bash
 chmod +x install/install-macos.sh && ./install/install-macos.sh
@@ -75,13 +75,13 @@ echo 'alias check-certs="$HOME/scripts/check-certs/check-certs.sh"' >> ~/.zshrc
 source ~/.zshrc
 ```
 
-To add background monitoring after a manual install see [docs/macos-notify.md](docs/macos-notify.md), [docs/webhook.md](docs/webhook.md), or [docs/pushover.md](docs/pushover.md).
+To add background monitoring after a manual install see [docs/macos-notify.md](docs/macos-notify.md), [docs/email.md](docs/email.md), [docs/webhook.md](docs/webhook.md), or [docs/pushover.md](docs/pushover.md).
 
 ### Linux
 
 GNU `date` is available natively — no Homebrew or `coreutils` needed.
 
-**Automatic** (Debian/Ubuntu) – installs `check-certs.sh` and optionally configures a Postfix, ssmtp, sendmail, webhook, or Pushover variant via cron:
+**Automatic** (Debian/Ubuntu) – installs `check-certs.sh` and optionally configures one or more automation variants (email, webhook, Pushover) via cron:
 
 ```bash
 chmod +x install/install-linux.sh && sudo ./install/install-linux.sh
@@ -100,7 +100,7 @@ echo 'alias check-certs="$HOME/scripts/check-certs/check-certs.sh"' >> ~/.bashrc
 source ~/.bashrc
 ```
 
-To add background monitoring after a manual install see [docs/linux-email.md](docs/linux-email.md), [docs/webhook.md](docs/webhook.md), or [docs/pushover.md](docs/pushover.md).
+To add background monitoring after a manual install see [docs/email.md](docs/email.md), [docs/webhook.md](docs/webhook.md), or [docs/pushover.md](docs/pushover.md).
 
 ---
 
@@ -171,7 +171,7 @@ Key settings:
 | `URGENT_DAYS` | `2` | Urgent alert from X days (0 = disabled) |
 | `TIMEOUT` | `5` | Connection timeout per server in seconds |
 | `MAX_JOBS` | `10` | Maximum parallel checks |
-| `MAIL_TRANSPORT` | `postfix` | Email transport: `postfix`, `ssmtp`, or `sendmail` (email variant) |
+| `MAIL_TRANSPORT` | `postfix` (Linux) / `ssmtp` (macOS) | Email transport: `postfix`, `ssmtp`, or `sendmail` (email variant) |
 | `MAIL_TO` | – | Primary email recipient (email variant) |
 | `MAIL_TO_URGENT` | – | Second recipient for urgent alerts (email variant) |
 | `MAIL_FROM` | – | Sender address (email variant) |
@@ -256,7 +256,7 @@ URGENT_DAYS=2   # 0 disables the urgent level
 Once you have `check-certs.sh` set up, you can add automated background monitoring:
 
 - 🍎 **[macOS notifications](docs/macos-notify.md)** – daily launchd job, native macOS notifications with escalation levels
-- 🖥️ **[Linux email](docs/linux-email.md)** – daily cron job, email reports via Postfix, ssmtp, or sendmail
+- 📧 **[Email](docs/email.md)** – daily email reports via Postfix, ssmtp, or sendmail (Linux and macOS)
 - 🌐 **[Webhook](docs/webhook.md)** – HTTP POST to Slack, ntfy.sh, Teams, Mattermost, or any custom endpoint
 - 📱 **[Pushover](docs/pushover.md)** – mobile push notifications with emergency acknowledgement for iOS and Android
 - 🔧 **[Build your own wrapper](docs/wrapper-interface.md)** – full interface reference for custom delivery scripts
@@ -272,7 +272,7 @@ LICENSE
 
 docs/
 ├── macos-notify.md        ← macOS notification variant
-├── linux-email.md         ← Linux email variant (Postfix or ssmtp via MAIL_TRANSPORT)
+├── email.md               ← Email variant (Postfix, ssmtp, or sendmail, Linux + macOS)
 ├── webhook.md             ← Webhook variant
 ├── pushover.md            ← Pushover variant
 ├── wrapper-interface.md   ← Interface reference for building custom wrappers
@@ -281,7 +281,7 @@ docs/
 src/
 ├── check-certs.sh               ← Main script – terminal table + core logic
 ├── check-certs-notify.sh        ← macOS notification variant
-├── check-certs-mail.sh          ← Linux email variant (Postfix or ssmtp)
+├── check-certs-mail.sh          ← Email variant (Postfix, ssmtp, or sendmail, Linux + macOS)
 ├── check-certs-webhook.sh       ← Webhook variant (HTTP POST, any platform)
 └── check-certs-pushover.sh      ← Pushover variant (mobile push, any platform)
 

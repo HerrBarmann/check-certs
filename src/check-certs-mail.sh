@@ -32,7 +32,15 @@ source "$CORE"
 configure_wrapper
 
 # ── State file default for this variant ──────────────────────
-: "${STATE_FILE:=/var/lib/check-certs/state}"
+# Default to a variant-specific state file so multiple variants can
+# coexist without interfering with each other's escalation tracking.
+if [ -z "${STATE_FILE:-}" ]; then
+    if [[ "$(uname)" == "Darwin" ]]; then
+        STATE_FILE="$HOME/Library/Application Support/check-certs/state-mail"
+    else
+        STATE_FILE="/var/lib/check-certs/state-mail"
+    fi
+fi
 state_init
 
 # ── Email defaults (if not set in check-certs.conf) ──────────

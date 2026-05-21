@@ -2,7 +2,7 @@
 
 # ============================================================
 #  check-certs.sh – SSL certificate checker
-#  Version 2.0.0
+#  Version 2.2.0
 #
 #  STANDALONE USAGE (terminal table, macOS + Linux):
 #    check-certs [hostname[:port]]
@@ -51,7 +51,7 @@
 # ============================================================
 
 # ── Version ──────────────────────────────────────────────────
-VERSION="2.1.1"
+VERSION="2.2.0"
 
 # ── Date command ─────────────────────────────────────────────
 # macOS: gdate via coreutils; Linux: GNU date natively

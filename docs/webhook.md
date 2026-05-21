@@ -78,7 +78,7 @@ nano /opt/check-certs/check-certs.conf
 | `WEBHOOK_AUTH_VALUE` | No | Authentication header value (e.g. `Bearer mytoken`) |
 | `WEBHOOK_SEND_SUMMARY` | No | Post a summary event after all checks (default: `true`) |
 
-Threshold and state settings (`WARN_DAYS`, `CRIT_DAYS`, `URGENT_DAYS`, `STATE_FILE` etc.) are shared with the other variants and work identically.
+Threshold settings (`WARN_DAYS`, `CRIT_DAYS`, `URGENT_DAYS` etc.) are shared with other variants via `check-certs.conf`. Each variant defaults to its own state file (`state-webhook`) so multiple variants can run simultaneously without interfering.
 
 ---
 

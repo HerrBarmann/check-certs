@@ -23,7 +23,9 @@ configure_wrapper
 
 # ── Variant-specific defaults (applied after config file) ────
 : "${LOG_FILE:=$HOME/Library/Logs/check-certs/check-certs-notify.log}"
-: "${STATE_FILE:=$HOME/Library/Application Support/check-certs/state}"
+# Default to a variant-specific state file so multiple variants can
+# coexist without interfering with each other's escalation tracking.
+: "${STATE_FILE:=$HOME/Library/Application Support/check-certs/state-notify}"
 
 # Initialise state and ensure log directory exists
 state_init
