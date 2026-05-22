@@ -198,19 +198,16 @@ _prompt_smtp() {
         SMTP_PORT="${SMTP_PORT:-587}"
     done
 
-    read -r -p "  SMTP username (email address): " SMTP_USER
-    while [[ -z "$SMTP_USER" || ! "$SMTP_USER" =~ ^[^@]+@[^@]+\.[^@]+$ ]]; do
-        echo -e "  ${RED}Invalid email address. Please try again.${NC}"
-        read -r -p "  SMTP username: " SMTP_USER
-    done
-
-    read -r -s -p "  SMTP password (app password): " SMTP_PASS
-    echo ""
-    while [ -z "$SMTP_PASS" ]; do
-        echo -e "  ${RED}Please enter a password.${NC}"
-        read -r -s -p "  SMTP password: " SMTP_PASS
+    read -r -p "  SMTP username (leave blank for unauthenticated relay): " SMTP_USER
+    if [ -n "$SMTP_USER" ]; then
+        read -r -s -p "  SMTP password (app password): " SMTP_PASS
         echo ""
-    done
+        while [ -z "$SMTP_PASS" ]; do
+            echo -e "  ${RED}Please enter a password.${NC}"
+            read -r -s -p "  SMTP password: " SMTP_PASS
+            echo ""
+        done
+    fi
 }
 
 # ── Configuration prompts ─────────────────────────────────────
@@ -427,16 +424,16 @@ if [ -n "$INSTALL_MAIL" ] && [ "$MAIL_TRANSPORT" = "ssmtp" ]; then
     else
         echo "  Writing /etc/ssmtp/ssmtp.conf..."
         mkdir -p /etc/ssmtp
-        cat > /etc/ssmtp/ssmtp.conf <<EOF
-root=${MAIL_FROM}
-mailhub=${SMTP_HOST}:${SMTP_PORT}
-AuthUser=${SMTP_USER}
-AuthPass=${SMTP_PASS}
-UseTLS=YES
-UseSTARTTLS=YES
-hostname=${FQDN}
-FromLineOverride=YES
-EOF
+        {
+            echo "root=${MAIL_FROM}"
+            echo "mailhub=${SMTP_HOST}:${SMTP_PORT}"
+            [ -n "$SMTP_USER" ] && echo "AuthUser=${SMTP_USER}"
+            [ -n "$SMTP_PASS" ] && echo "AuthPass=${SMTP_PASS}"
+            echo "UseTLS=YES"
+            echo "UseSTARTTLS=YES"
+            echo "hostname=${FQDN}"
+            echo "FromLineOverride=YES"
+        } > /etc/ssmtp/ssmtp.conf
         chmod 640 /etc/ssmtp/ssmtp.conf
         echo -e "${GREEN}✓ ssmtp configured${NC}"
     fi
