@@ -9,6 +9,7 @@
 #  Optionally installs one or more automation variants:
 #    check-certs-mail.sh         – email via Postfix, ssmtp, or sendmail
 #    check-certs-webhook.sh      – HTTP POST webhook
+#    check-certs-teams.sh        – Microsoft Teams Adaptive Card
 #    check-certs-pushover.sh     – Pushover mobile push
 #
 #  Usage: sudo ./install-linux.sh
@@ -69,19 +70,22 @@ echo ""
 INSTALL_MAIL=""
 MAIL_TRANSPORT=""
 INSTALL_WEBHOOK=false
+INSTALL_TEAMS=false
 INSTALL_PUSHOVER=false
 INSTALL_NONE=false
 
 for choice in $VARIANT_INPUT; do
     case "$choice" in
-        1) INSTALL_MAIL=true    ;;
-        2) INSTALL_WEBHOOK=true ;;
-        3) INSTALL_PUSHOVER=true ;;
-        *) INSTALL_NONE=true    ;;
+        1) INSTALL_MAIL=true     ;;
+        2) INSTALL_WEBHOOK=true  ;;
+        3) INSTALL_TEAMS=true    ;;
+        4) INSTALL_PUSHOVER=true ;;
+        *) INSTALL_NONE=true     ;;
     esac
 done
 
-if [ -z "$INSTALL_MAIL" ] && [ "$INSTALL_WEBHOOK" = false ] && [ "$INSTALL_PUSHOVER" = false ]; then
+if [ -z "$INSTALL_MAIL" ] && [ "$INSTALL_WEBHOOK" = false ] && \
+   [ "$INSTALL_TEAMS" = false ] && [ "$INSTALL_PUSHOVER" = false ]; then
     INSTALL_NONE=true
 fi
 
@@ -270,6 +274,23 @@ if [ "$INSTALL_WEBHOOK" = true ]; then
     _prompt_cron_time "Webhook cron job"
     WEBHOOK_CRON_HOUR="$_HOUR"
     WEBHOOK_CRON_MINUTE="$_MINUTE"
+    echo ""
+    echo "──────────────────────────────"
+    echo ""
+fi
+
+# Teams-specific prompts
+if [ "$INSTALL_TEAMS" = true ]; then
+    echo -e "  ${BOLD}Teams variant${NC}"
+    echo ""
+    read -r -p "  Teams Workflow webhook URL: " TEAMS_WEBHOOK_URL
+    while [ -z "$TEAMS_WEBHOOK_URL" ]; do
+        echo -e "  ${RED}Please enter a webhook URL.${NC}"
+        read -r -p "  Teams Workflow webhook URL: " TEAMS_WEBHOOK_URL
+    done
+    _prompt_cron_time "Teams cron job"
+    TEAMS_CRON_HOUR="$_HOUR"
+    TEAMS_CRON_MINUTE="$_MINUTE"
     echo ""
     echo "──────────────────────────────"
     echo ""
@@ -603,6 +624,23 @@ if [ "$INSTALL_WEBHOOK" = true ]; then
     fi
 fi
 
+if [ "$INSTALL_TEAMS" = true ]; then
+    read -r -p "  Send a test POST to the Teams webhook URL? [Y/n] " send_test
+    if [[ ! "$send_test" =~ ^[nN]$ ]]; then
+        _payload_file=$(mktemp)
+        printf '%s' '{"type":"message","attachments":[{"contentType":"application/vnd.microsoft.card.adaptive","contentUrl":null,"content":{"$schema":"http://adaptivecards.io/schemas/adaptive-card.json","type":"AdaptiveCard","version":"1.2","body":[{"type":"TextBlock","text":"check-certs installation test","weight":"Bolder"}]}}]}' > "$_payload_file"
+        _code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$TEAMS_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            --data-binary "@${_payload_file}" 2>/dev/null) || true
+        rm -f "$_payload_file"
+        if [[ "$_code" =~ ^2 ]]; then
+            echo -e "${GREEN}✓ Test card sent (HTTP ${_code})${NC}"
+        else
+            echo -e "${YELLOW}⚠ Test POST returned HTTP ${_code:-no response}. Check TEAMS_WEBHOOK_URL.${NC}"
+        fi
+    fi
+fi
+
 # ── Summary ──────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}${BOLD}✅ Installation complete!${NC}"
@@ -618,6 +656,8 @@ echo -e "  Server list:  ${BOLD}$TARGET_DIR/$CONF_NAME${NC}"
 }
 [ "$INSTALL_WEBHOOK" = true ] && \
     echo -e "  Webhook:      ${BOLD}$TARGET_DIR/check-certs-webhook.sh${NC} (daily at ${WEBHOOK_CRON_HOUR}:$(printf '%02d' "$WEBHOOK_CRON_MINUTE"))"
+[ "$INSTALL_TEAMS" = true ] && \
+    echo -e "  Teams:        ${BOLD}$TARGET_DIR/check-certs-teams.sh${NC} (daily at ${TEAMS_CRON_HOUR}:$(printf '%02d' "$TEAMS_CRON_MINUTE"))"
 [ "$INSTALL_PUSHOVER" = true ] && \
     echo -e "  Pushover:     ${BOLD}$TARGET_DIR/check-certs-pushover.sh${NC} (daily at ${PUSHOVER_CRON_HOUR}:$(printf '%02d' "$PUSHOVER_CRON_MINUTE"))"
 echo ""
