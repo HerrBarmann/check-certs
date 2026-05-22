@@ -221,7 +221,7 @@ if [ "$new_issues" -gt 0 ]; then
     body+="Please renew the affected certificates promptly."$'\n'
 
     if echo "$report_new" | grep -q "URGENT\|EXPIRED"; then
-        subject="[check-certs] URGENT – Certificate expiring ($(date '+%Y-%m-%d'))"
+        subject="[check-certs] URGENT - Certificate expiring ($(date '+%Y-%m-%d'))"
         _send_mail "$subject" "$MAIL_TO" "$body"
         [ "$MAIL_TO_URGENT" != "$MAIL_TO" ] && _send_mail "$subject" "$MAIL_TO_URGENT" "$body"
     else
@@ -238,7 +238,7 @@ if [ "$reminders" -gt 0 ]; then
     body+="These certificates have already been reported and have not yet been renewed."$'\n'
 
     if echo "$report_reminder" | grep -q "URGENT\|EXPIRED"; then
-        subject="[check-certs] URGENT – Certificate reminder ($(date '+%Y-%m-%d'))"
+        subject="[check-certs] URGENT - Certificate reminder ($(date '+%Y-%m-%d'))"
         _send_mail "$subject" "$MAIL_TO" "$body"
         [ "$MAIL_TO_URGENT" != "$MAIL_TO" ] && _send_mail "$subject" "$MAIL_TO_URGENT" "$body"
     else
