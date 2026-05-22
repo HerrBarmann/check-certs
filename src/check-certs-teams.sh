@@ -44,6 +44,7 @@ state_init
 
 # ── Config ───────────────────────────────────────────────────
 : "${TEAMS_WEBHOOK_URL:=}"
+: "${TEAMS_DEBUG:=false}"   # set to true to print the card JSON without posting
 
 if [ -z "$TEAMS_WEBHOOK_URL" ]; then
     echo "Error: TEAMS_WEBHOOK_URL is not set. Add it to check-certs.conf." >&2
@@ -119,14 +120,17 @@ on_cert_result() {
     local chain_note=""
     [ "$chain_status" != "OK" ] && chain_note=" ⚠ chain"
 
-    _r_host+=("$hostname")
-    _r_days+=("$days_display")
-    _r_date+=("$short_date")
-    _r_status+=("$status${chain_note}")
-    _r_ca+=("$ca_name")
-    _r_color+=("$color")
-    _groups+=("ROW:$_row_count")
-    _row_count=$(( _row_count + 1 ))
+    # Only include non-OK results in the card
+    if [ "$status" != "OK" ]; then
+        _r_host+=("$hostname")
+        _r_days+=("$days_display")
+        _r_date+=("$short_date")
+        _r_status+=("$status${chain_note}")
+        _r_ca+=("$ca_name")
+        _r_color+=("$color")
+        _groups+=("ROW:$_row_count")
+        _row_count=$(( _row_count + 1 ))
+    fi
 }
 
 on_cert_error() {
@@ -187,42 +191,40 @@ fi
 _body='['
 
 # Header row
-_body+='{"type":"ColumnSet","columns":['
-_body+='{"type":"Column","width":"stretch","items":[{"type":"TextBlock","text":"**Server**","wrap":true}]},'
-_body+='{"type":"Column","width":"auto","items":[{"type":"TextBlock","text":"**Days**"}]},'
-_body+='{"type":"Column","width":"auto","items":[{"type":"TextBlock","text":"**Expiry**"}]},'
-_body+='{"type":"Column","width":"auto","items":[{"type":"TextBlock","text":"**Status**"}]},'
-_body+='{"type":"Column","width":"stretch","items":[{"type":"TextBlock","text":"**CA**","wrap":true}]}'
+_body+='{"type":"ColumnSet","spacing":"None","columns":['
+_body+='{"type":"Column","width":"stretch","items":[{"type":"TextBlock","text":"Server","weight":"Bolder","size":"Small"}]},'
+_body+='{"type":"Column","width":"110px","items":[{"type":"TextBlock","text":"Expiry","weight":"Bolder","size":"Small"}]},'
+_body+='{"type":"Column","width":"80px","items":[{"type":"TextBlock","text":"Status","weight":"Bolder","size":"Small"}]}'
 _body+=']},'
 
-# Separator
-_body+='{"type":"Separator"},'
+# (separator is a property, not an element — omitted)
 
 # Rows and group headers
-_current_group=""
+# Groups are only emitted when at least one non-OK row follows them
+_pending_group=""
 for entry in "${_groups[@]}"; do
     kind="${entry%%:*}"
     value="${entry#*:}"
 
     if [ "$kind" = "GROUP" ]; then
-        _body+=$(printf '{"type":"TextBlock","text":"%s","weight":"Bolder","spacing":"Medium","color":"Accent"},' \
-            "$(_json_str "$value")")
+        _pending_group="$value"
     elif [ "$kind" = "ROW" ]; then
-        local _idx="$value"
-        local _h _d _dt _st _ca _cl
-        _h="${_r_host[$_idx]}"
-        _d="${_r_days[$_idx]}"
-        _dt="${_r_date[$_idx]}"
-        _st="${_r_status[$_idx]}"
-        _ca="${_r_ca[$_idx]}"
-        _cl="${_r_color[$_idx]}"
-        _body+='{"type":"ColumnSet","columns":['
-        _body+='{"type":"Column","width":"stretch","items":[{"type":"TextBlock","text":"'"$(_json_str "$_h")"'"","wrap":true,"size":"Small"}]},'
-        _body+='{"type":"Column","width":"auto","items":[{"type":"TextBlock","text":"'"$(_json_str "$_d")"'"","color":"'"$_cl"'"","size":"Small"}]},'
-        _body+='{"type":"Column","width":"auto","items":[{"type":"TextBlock","text":"'"$(_json_str "$_dt")"'"","size":"Small"}]},'
-        _body+='{"type":"Column","width":"auto","items":[{"type":"TextBlock","text":"'"$(_json_str "$_st")"'"","color":"'"$_cl"'"","weight":"Bolder","size":"Small"}]},'
-        _body+='{"type":"Column","width":"stretch","items":[{"type":"TextBlock","text":"'"$(_json_str "$_ca")"'"","wrap":true,"size":"Small","isSubtle":true}]}'
-        _body+=']},'
+        # Emit buffered group label before the first row in this group
+        if [ -n "$_pending_group" ]; then
+            _body+=$(printf '{"type":"TextBlock","text":"— %s","weight":"Bolder","size":"Small","spacing":"Small"},' \
+                "$(_json_str "$_pending_group")")
+            _pending_group=""
+        fi
+        _idx="$value"
+        _fmt='{"type":"ColumnSet","spacing":"None","columns":['
+        _fmt+='{"type":"Column","width":"stretch","items":[{"type":"TextBlock","text":"%s","size":"Small","wrap":true}]},'
+        _fmt+='{"type":"Column","width":"110px","items":[{"type":"TextBlock","text":"%s","size":"Small"}]},'
+        _fmt+='{"type":"Column","width":"80px","items":[{"type":"TextBlock","text":"%s","size":"Small","weight":"Bolder"}]}'
+        _fmt+=']},'
+        _body+=$(printf "$_fmt" \
+            "$(_json_str "${_r_host[$_idx]}")" \
+            "$(_json_str "${_r_date[$_idx]}")" \
+            "$(_json_str "${_r_status[$_idx]}")")
     fi
 done
 
@@ -231,86 +233,64 @@ _body="${_body%,}"
 _body+=']'
 
 # Summary footer
-_ok_count=$(( total - warned ))
+_ok_count=$(( total - warned - errors ))
 _summary=$(printf '%d checked  ·  ✓ %d OK  ·  ⚠ %d Warning  ·  ✗ %d Critical/Error' \
     "$total" "$_ok_count" "$warned" "$errors")
 
 # Assemble the full Adaptive Card payload
 # Teams Workflow webhooks require the message wrapper format
-_card=$(cat << CARD
-{
-  "type": "message",
-  "attachments": [
-    {
-      "contentType": "application/vnd.microsoft.card.adaptive",
-      "contentUrl": null,
-      "content": {
-        "\$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
-        "type": "AdaptiveCard",
-        "version": "1.4",
-        "body": [
-          {
-            "type": "Container",
-            "style": "$_header_color",
-            "items": [
-              {
-                "type": "TextBlock",
-                "text": "$(_json_str "$_header_text")",
-                "weight": "Bolder",
-                "size": "Medium",
-                "color": "Light"
-              },
-              {
-                "type": "TextBlock",
-                "text": "$(_json_str "$_timestamp")",
-                "size": "Small",
-                "color": "Light",
-                "isSubtle": true
-              }
-            ]
-          },
-          {
-            "type": "Container",
-            "items": $_body
-          },
-          {
-            "type": "TextBlock",
-            "text": "$(_json_str "$_summary")",
-            "size": "Small",
-            "isSubtle": true,
-            "separator": true,
-            "spacing": "Medium"
-          }
-        ]
-      }
-    }
-  ]
-}
-CARD
-)
+_header_container=$(printf '{"type":"TextBlock","text":"%s","weight":"Bolder","size":"Large","wrap":true},{"type":"TextBlock","text":"%s","size":"Small","isSubtle":true}' \
+    "$(_json_str "$_header_text")" "$(_json_str "$_timestamp")")
+
+# No Container wrapper — items go directly into body
+_table_container="$_body"
+
+_summary_block=$(printf '{"type":"TextBlock","text":"%s","size":"Small","isSubtle":true}' \
+    "$(_json_str "$_summary")")
+
+# Splice all body items directly into one flat array
+_ac_content=$(printf '{"$schema":"http://adaptivecards.io/schemas/adaptive-card.json","type":"AdaptiveCard","version":"1.2","body":[%s,%s,%s]}' \
+    "$_header_container" "${_table_container:1:${#_table_container}-2}" "$_summary_block")
+
+_card=$(printf '{"type":"message","attachments":[{"contentType":"application/vnd.microsoft.card.adaptive","contentUrl":null,"content":%s}]}' \
+    "$_ac_content")
 
 # ── Post card ─────────────────────────────────────────────────
 _post_card() {
-    local payload="$1"
-    local -a args=(-s -o /dev/null -w "%{http_code}" \
-        -X POST "$TEAMS_WEBHOOK_URL" \
-        -H "Content-Type: application/json" \
-        -d "$payload")
+    local payload_file
+    payload_file=$(mktemp)
+    printf '%s' "$1" > "$payload_file"
 
     local http_code
-    http_code=$(curl "${args[@]}" 2>/dev/null)
+    http_code=$(curl -s -o /dev/null -w "%{http_code}" \
+        -X POST "$TEAMS_WEBHOOK_URL" \
+        -H "Content-Type: application/json" \
+        --data-binary "@${payload_file}" 2>/dev/null)
 
     if [ -z "$http_code" ] || [[ "$http_code" -lt 200 || "$http_code" -ge 300 ]]; then
         sleep 5
-        http_code=$(curl "${args[@]}" 2>/dev/null)
+        http_code=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST "$TEAMS_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            --data-binary "@${payload_file}" 2>/dev/null)
         if [ -z "$http_code" ] || [[ "$http_code" -lt 200 || "$http_code" -ge 300 ]]; then
             echo "Warning: Teams POST failed (HTTP ${http_code:-no response})" >&2
+            rm -f "$payload_file"
             return 1
         fi
     fi
+    rm -f "$payload_file"
     return 0
 }
 
+if [ "$TEAMS_DEBUG" = "true" ]; then
+    printf '%s\n' "$_card"
+    echo "" >&2
+    printf '%s' "$_card" | python3 -m json.tool >/dev/null 2>&1 \
+        && echo "[DEBUG] JSON valid" >&2 \
+        || echo "[DEBUG] WARNING: JSON invalid" >&2
+    exit 0
+fi
 _post_card "$_card"
 
 logger -t check-certs \
