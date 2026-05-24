@@ -1,22 +1,21 @@
 # ============================================================
 #  check-certs logrotate configuration
 #
-#  NOTE: The Linux email variants (check-certs-mail.sh and
-#  check-certs-mail.sh) write to syslog via 'logger',
-#  not to log files. Their output appears in journald and can
-#  be viewed with: journalctl -t check-certs
+#  Covers all check-certs variants that write to log files.
+#  On Linux, the launchd-style log files are not used — variants
+#  log via 'logger' and output appears in journald:
+#    journalctl -t check-certs
 #
-#  This logrotate config applies only if you configure the
-#  cron wrappers to write to a log file by redirecting output
-#  in the cron job, for example:
-#    0 7 * * * /opt/check-certs/check-certs-mail.sh \
-#              >> /var/log/check-certs/check-certs-mail.log 2>&1
+#  This file is relevant when variants are configured to write
+#  to /var/log/check-certs/ directly (e.g. by redirecting
+#  cron output), or when you add explicit LOG_FILE= entries
+#  pointing there in check-certs.conf.
 #
-#  Create the log directory first:
-#    sudo mkdir -p /var/log/check-certs
-#
-#  Then install this file:
+#  Install:
 #    sudo cp install/check-certs.logrotate /etc/logrotate.d/check-certs
+#
+#  The installer (install/install.sh) installs this automatically
+#  on Linux when any variant is selected.
 # ============================================================
 
 /var/log/check-certs/*.log {
@@ -30,29 +29,27 @@
     compress
     delaycompress
 
-    # Don't error if log file is missing
+    # Don't error if no log files exist yet
     missingok
 
     # Don't rotate empty logs
     notifempty
 
-    # Add date to rotated filename (e.g. check-certs-mail.log-20260518)
+    # Add date suffix to rotated filenames
     dateext
     dateformat -%Y%m%d
 
-    # Create new log file after rotation
+    # Create fresh log file after rotation
     create 640 root root
 }
 
-# ── macOS note ───────────────────────────────────────────────
-# The notification variant writes logs to:
-#   ~/Library/Logs/check-certs/check-certs-notify.log
+# ── macOS ────────────────────────────────────────────────────
+# On macOS, all variants write to:
+#   ~/Library/Logs/check-certs/
 #
-# macOS does not use logrotate. To rotate this log manually,
-# add the following to your crontab (e.g. every Sunday at 06:00):
+# macOS does not use logrotate. Logs are typically small —
+# one short line per server per day — so rotation is rarely
+# needed. To trim them periodically, add to your crontab:
 #
 #   0 6 * * 0 find ~/Library/Logs/check-certs -name "*.log" \
-#     -size +5M -exec gzip {} \; -exec touch {}.new \;
-#
-# Or simply let the file grow – at one short line per server
-# per day it takes years to become problematic.
+#     -size +5M -exec gzip {} \;

@@ -378,7 +378,7 @@ install/
 ├── com.check-certs.webhook.plist  ← launchd job template (webhook)
 ├── com.check-certs.pushover.plist ← launchd job template (Pushover)
 ├── com.check-certs.teams.plist    ← launchd job template (Teams)
-└── check-certs.logrotate          ← logrotate config for the email variant
+└── check-certs.logrotate          ← logrotate config (all variants, Linux)
 
 config/
 ├── servers.conf                 ← Example server list

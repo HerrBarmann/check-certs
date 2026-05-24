@@ -805,7 +805,9 @@ echo -e "    ${BOLD}$TARGET_DIR/servers.conf${NC}"
 echo ""
 
 if [ "$INSTALL_NONE" = false ] && [ "$PLATFORM" = "linux" ]; then
-    echo "  View syslog entries:"
+    echo "  Syslog entries:"
     echo -e "    ${BOLD}journalctl -t check-certs${NC}"
+    echo "  Log rotation:"
+    echo -e "    ${BOLD}/etc/logrotate.d/check-certs${NC} (weekly, 8 weeks)"
     echo ""
 fi

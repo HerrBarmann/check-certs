@@ -301,7 +301,7 @@ install/
 ├── com.check-certs.webhook.plist  ← launchd-Jobvorlage (Webhook)
 ├── com.check-certs.pushover.plist ← launchd-Jobvorlage (Pushover)
 ├── com.check-certs.teams.plist    ← launchd-Jobvorlage (Teams)
-└── check-certs.logrotate          ← logrotate-Konfiguration für die E-Mail-Variante
+└── check-certs.logrotate          ← logrotate-Konfiguration (alle Varianten, Linux)
 
 config/
 ├── servers.conf                 ← Beispiel-Serverliste
