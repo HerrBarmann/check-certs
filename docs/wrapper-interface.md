@@ -88,7 +88,7 @@ configure_wrapper
 
 | Variable | Default | Description |
 | -------- | ------- | ----------- |
-| `SERVER_FILE` | `./servers.conf` | Path to the server list |
+| `SERVER_FILE` | `./servers.conf` | Path to the server list – supports per-host overrides (`host:443 warn=30 crit=14`) |
 | `STATE_FILE` | *(variant default)* | Path to the state file. Each built-in variant defaults to its own named file (e.g. `state-mail`). Empty string disables state tracking entirely |
 | `WARN_DAYS` | `15` | Days remaining below which `WARNING` is triggered |
 | `CRIT_DAYS` | `7` | Days remaining below which `CRITICAL` is triggered |
@@ -255,7 +255,7 @@ on_cert_error() {
 #### `on_cert_result`
 
 ```
-on_cert_result hostname port days_left short_date ca_name status prev_status hours_since chain_status
+on_cert_result hostname port days_left short_date ca_name status prev_status hours_since chain_status current_ts
 ```
 
 Called for every certificate that was successfully checked, regardless of
@@ -272,13 +272,14 @@ status. Invoked before the escalation logic makes its decision.
 | 7 | `prev_status` | string | Status recorded in state from the previous run. Empty on first run |
 | 8 | `hours_since` | integer | Hours elapsed since the last `deliver_finding` or `deliver_reminder` call for this host |
 | 9 | `chain_status` | string | `OK` or a chain failure description |
+| 10 | `current_ts` | integer | Unix timestamp of the current run, for use in state writes |
 
 ---
 
 #### `on_cert_error`
 
 ```
-on_cert_error hostname port reason prev_status hours_since
+on_cert_error hostname port reason prev_status hours_since current_ts
 ```
 
 Called for every host that could not be reached or had an invalid port,
@@ -291,6 +292,7 @@ regardless of whether it is a new error or a known one.
 | 3 | `reason` | string | `Unreachable` or `Invalid port` |
 | 4 | `prev_status` | string | Status from the previous run. Empty on first run |
 | 5 | `hours_since` | integer | Hours elapsed since the last notification for this host |
+| 6 | `current_ts` | integer | Unix timestamp of the current run, for use in state writes |
 
 ---
 
@@ -378,6 +380,12 @@ functions rather than reading or writing the file directly.
 value=$(state_get "key")     # Returns empty string if key is absent
 state_set    "key" "value"   # Create or update a key
 state_delete "key"           # Remove a key
+```
+
+To clear all state (force fresh notifications on next run):
+
+```bash
+check-certs --clear-state
 ```
 
 **Keys written by the escalation logic:**

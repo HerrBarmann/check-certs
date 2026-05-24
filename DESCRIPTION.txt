@@ -1,0 +1,1 @@
+SSL/TLS certificate monitoring for macOS and Linux. Watches expiry dates across all your servers in parallel, verifies the full certificate chain, and alerts you before anything expires — via terminal, email, webhook, macOS notifications, or Pushover.

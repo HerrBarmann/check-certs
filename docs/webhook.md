@@ -23,11 +23,11 @@ No mail server required. Runs on any platform with `curl`.
 ### Automatic (macOS and Debian/Ubuntu)
 
 ```bash
-chmod +x install/install-macos.sh   # macOS
-./install/install-macos.sh
+chmod +x install/install.sh   # macOS
+./install/install.sh
 
-chmod +x install/install-linux.sh   # Linux
-sudo ./install/install-linux.sh
+chmod +x install/install.sh   # Linux
+sudo ./install/install.sh
 ```
 
 Select **Webhook** when prompted. The installer writes `check-certs.conf`, copies the script and sets up a launchd job (macOS) or cron job (Linux).
@@ -158,13 +158,9 @@ WEBHOOK_AUTH_VALUE="Bearer <your-ntfy-token>"
 
 ntfy.sh accepts arbitrary JSON but displays the raw body. For a nicer message, use ntfy's native API instead and adapt the payload format in a custom wrapper.
 
-### Teams incoming webhook
+### Teams
 
-```bash
-WEBHOOK_URL="https://myorg.webhook.office.com/webhookb2/..."
-```
-
-Teams expects a specific `{"text": "..."}` format. Use a custom wrapper (see [wrapper-interface.md](wrapper-interface.md)) to shape the payload for Teams.
+For Microsoft Teams, use the dedicated `check-certs-teams.sh` variant, which sends a properly formatted Adaptive Card directly — see [docs/teams.md](teams.md).
 
 ### Generic endpoint with Bearer token
 

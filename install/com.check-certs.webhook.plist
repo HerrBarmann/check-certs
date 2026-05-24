@@ -8,14 +8,14 @@
     <key>Label</key>
     <string>com.check-certs.webhook</string>
 
-    <!-- Path to script – set automatically by install-macos.sh -->
+    <!-- Path to script – set automatically by install.sh -->
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
         <string>SCRIPT_PATH_PLACEHOLDER</string>
     </array>
 
-    <!-- Daily execution time – set automatically by install-macos.sh -->
+    <!-- Daily execution time – set automatically by install.sh -->
     <key>StartCalendarInterval</key>
     <dict>
         <key>Hour</key>

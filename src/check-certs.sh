@@ -2,7 +2,7 @@
 
 # ============================================================
 #  check-certs.sh – SSL certificate checker
-#  Version 2.3.1
+#  Version 2.4.0
 #
 #  STANDALONE USAGE (terminal table, macOS + Linux):
 #    check-certs [hostname[:port]]
@@ -51,7 +51,7 @@
 # ============================================================
 
 # ── Version ──────────────────────────────────────────────────
-VERSION="2.3.1"
+VERSION="2.4.0"
 
 # ── Date command ─────────────────────────────────────────────
 # macOS: gdate via coreutils; Linux: GNU date natively
@@ -139,12 +139,12 @@ state_delete() {
 extract_ca() {
     local issuer="$1" ca
 
-    ca=$(echo "$issuer" | sed 's/.*[, /]CN[[:space:]]*=[[:space:]]*//' \
+    ca=$(echo "$issuer" | sed 's/.*[,= /]CN[[:space:]]*=[[:space:]]*//' \
                         | sed 's/[,/].*//'                              \
                         | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
 
     if [ -z "$ca" ] || echo "$ca" | grep -q "issuer="; then
-        ca=$(echo "$issuer" | sed 's/.*[, /]O[[:space:]]*=[[:space:]]*//' \
+        ca=$(echo "$issuer" | sed 's/.*[,= /]O[[:space:]]*=[[:space:]]*//' \
                             | sed 's/[,/].*//'                             \
                             | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
     fi
@@ -188,32 +188,32 @@ _starttls_proto() {
 }
 
 # ── Certificate check worker (runs in background) ────────────
-# Writes a structured result to a temp file (one field per line):
-#   Line 1: TYPE        – RESULT or ERROR
-#   Line 2: HOSTNAME
-#   Line 3: PORT
-#   Line 4: PROTO       – starttls protocol or empty for plain TLS
-#   Line 5: DAYS_LEFT   (RESULT) | REASON (ERROR)
-#   Line 6: SHORT_DATE  (RESULT only)
-#   Line 7: CA_NAME     (RESULT only)
-#   Line 8: STATUS      (RESULT only)
-#   Line 9: CHAIN       (RESULT only) – OK or reason string
+# Writes KEY=value pairs to a temp file, one per line.
+# RESULT fields: TYPE HOST PORT PROTO DAYS EXPIRY CA STATUS CHAIN
+# ERROR fields:  TYPE HOST PORT PROTO REASON
+#
+# Reading back with _worker_field <file> <KEY> is safe regardless
+# of field order or future additions.
 _check_cert_worker() {
     local hostname="$1" port="$2" outfile="$3" proto="${4:-}"
+    # Per-host threshold overrides (fall back to globals if not set)
+    local h_warn="${5:-$WARN_DAYS}"
+    local h_crit="${6:-$CRIT_DAYS}"
+    local h_urgent="${7:-$URGENT_DAYS}"
+    local h_timeout="${8:-$TIMEOUT}"
     local timeout_cmd=""
     local current_ts
     current_ts=$($DATE_CMD +%s)
 
-    # Resolve timeout lazily so wrappers that set TIMEOUT after
-    # sourcing get the correct value
     if command -v gtimeout &>/dev/null; then
-        timeout_cmd="gtimeout ${TIMEOUT:-5}"
+        timeout_cmd="gtimeout ${h_timeout:-5}"
     elif command -v timeout &>/dev/null; then
-        timeout_cmd="timeout ${TIMEOUT:-5}"
+        timeout_cmd="timeout ${h_timeout:-5}"
     fi
 
     if ! [[ "$port" =~ ^[0-9]+$ ]]; then
-        printf 'ERROR\n%s\n%s\n%s\nInvalid port\n' "$hostname" "$port" "$proto" > "$outfile"
+        printf 'TYPE=ERROR\nHOST=%s\nPORT=%s\nPROTO=%s\nREASON=Invalid port\n' \
+            "$hostname" "$port" "$proto" > "$outfile"
         return
     fi
 
@@ -232,7 +232,8 @@ _check_cert_worker() {
         | openssl x509 -noout -enddate -issuer 2>/dev/null)
 
     if [ -z "$cert_data" ]; then
-        printf 'ERROR\n%s\n%s\n%s\nUnreachable\n' "$hostname" "$port" "$starttls_proto" > "$outfile"
+        printf 'TYPE=ERROR\nHOST=%s\nPORT=%s\nPROTO=%s\nREASON=Unreachable\n' \
+            "$hostname" "$port" "$starttls_proto" > "$outfile"
         return
     fi
 
@@ -267,7 +268,7 @@ _check_cert_worker() {
     short_date=$(echo "$expiry_date_raw" | awk '{print $1, $2, $4}')
     expiry_ts=$($DATE_CMD -d "$expiry_date_clean" +%s 2>/dev/null)
     if [ -z "$expiry_ts" ]; then
-        printf 'ERROR\n%s\n%s\n%s\nCould not parse expiry date\n' \
+        printf 'TYPE=ERROR\nHOST=%s\nPORT=%s\nPROTO=%s\nREASON=Could not parse expiry date\n' \
             "$hostname" "$port" "$starttls_proto" > "$outfile"
         return
     fi
@@ -277,11 +278,11 @@ _check_cert_worker() {
     local status
     if   [ "$days_left" -lt 0 ]; then
         status="EXPIRED"
-    elif [ "${URGENT_DAYS:-0}" -gt 0 ] && [ "$days_left" -lt "$URGENT_DAYS" ]; then
+    elif [ "${h_urgent:-0}" -gt 0 ] && [ "$days_left" -lt "$h_urgent" ]; then
         status="URGENT"
-    elif [ "$days_left" -lt "${CRIT_DAYS:-0}" ]; then
+    elif [ "$days_left" -lt "${h_crit:-0}" ]; then
         status="CRITICAL"
-    elif [ "$days_left" -lt "${WARN_DAYS:-15}" ]; then
+    elif [ "$days_left" -lt "${h_warn:-15}" ]; then
         status="WARNING"
     else
         status="OK"
@@ -290,9 +291,16 @@ _check_cert_worker() {
     # Broken chain with otherwise-OK leaf → CRITICAL
     [ "$chain_status" != "OK" ] && [ "$status" = "OK" ] && status="CRITICAL"
 
-    printf 'RESULT\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n' \
+    printf 'TYPE=RESULT\nHOST=%s\nPORT=%s\nPROTO=%s\nDAYS=%s\nEXPIRY=%s\nCA=%s\nSTATUS=%s\nCHAIN=%s\n' \
         "$hostname" "$port" "$starttls_proto" "$days_left" "$short_date" \
         "$ca_name" "$status" "$chain_status" > "$outfile"
+}
+
+# ── Worker output reader ─────────────────────────────────────
+# Reads a single KEY=value field from a worker output file.
+# Usage: value=$(_worker_field "$file" KEY)
+_worker_field() {
+    grep "^${2}=" "$1" | cut -d= -f2-
 }
 
 # ── Dispatch result to hooks ─────────────────────────────────
@@ -302,9 +310,9 @@ _dispatch_result() {
     local outfile="$1"
     local current_ts type hostname port
     current_ts=$($DATE_CMD +%s)
-    type=$(sed -n '1p' "$outfile")
-    hostname=$(sed -n '2p' "$outfile")
-    port=$(sed -n '3p' "$outfile")
+    type=$(_worker_field "$outfile" TYPE)
+    hostname=$(_worker_field "$outfile" HOST)
+    port=$(_worker_field "$outfile" PORT)
     total=$((total + 1))
 
     local prev_status last_seen hours_since
@@ -314,24 +322,24 @@ _dispatch_result() {
 
     if [ "$type" = "ERROR" ]; then
         local reason
-        reason=$(sed -n '5p' "$outfile")
-        on_cert_error "$hostname" "$port" "$reason" "$prev_status" "$hours_since"
+        reason=$(_worker_field "$outfile" REASON)
+        on_cert_error "$hostname" "$port" "$reason" "$prev_status" "$hours_since" "$current_ts"
         errors=$((errors + 1))
         return
     fi
 
     local days_left short_date ca_name status chain_status
-    days_left=$(sed -n '5p' "$outfile")
-    short_date=$(sed -n '6p' "$outfile")
-    ca_name=$(sed -n '7p' "$outfile")
-    status=$(sed -n '8p' "$outfile")
-    chain_status=$(sed -n '9p' "$outfile")
+    days_left=$(_worker_field "$outfile" DAYS)
+    short_date=$(_worker_field "$outfile" EXPIRY)
+    ca_name=$(_worker_field "$outfile" CA)
+    status=$(_worker_field "$outfile" STATUS)
+    chain_status=$(_worker_field "$outfile" CHAIN)
 
     [ "$status" != "OK" ] && warned=$((warned + 1))
 
     on_cert_result \
         "$hostname" "$port" "$days_left" "$short_date" \
-        "$ca_name" "$status" "$prev_status" "$hours_since" "$chain_status"
+        "$ca_name" "$status" "$prev_status" "$hours_since" "$chain_status" "$current_ts"
 }
 
 # ── Server loop ──────────────────────────────────────────────
@@ -359,8 +367,32 @@ run_server_loop() {
             continue
         fi
 
-        if [[ "$line" =~ ^([^:]+):([0-9]+)(:([a-z]+))?$ ]]; then
+        # Parse host:port[:proto] then optional key=value overrides
+        local _hostpart _overrides
+        _hostpart="${line%% *}"
+        _overrides="${line#"$_hostpart"}"
+        _overrides="${_overrides# }"
+
+        if [[ "$_hostpart" =~ ^([^:]+):([0-9]+)(:([a-z]+))?$ ]]; then
             h="${BASH_REMATCH[1]}" p="${BASH_REMATCH[2]}" pr="${BASH_REMATCH[4]}"
+
+            # Parse per-host overrides: warn=N crit=N urgent=N timeout=N
+            local ow="" oc="" ou="" ot=""
+            for _kv in $_overrides; do
+                case "$_kv" in
+                    warn=*)    ow="${_kv#warn=}"    ;;
+                    crit=*)    oc="${_kv#crit=}"    ;;
+                    urgent=*)  ou="${_kv#urgent=}"  ;;
+                    timeout=*) ot="${_kv#timeout=}" ;;
+                esac
+            done
+            # Validate override values are integers; discard if not
+            [[ "$ow" =~ ^[0-9]+$ ]] || ow=""
+            [[ "$oc" =~ ^[0-9]+$ ]] || oc=""
+            [[ "$ou" =~ ^[0-9]+$ ]] || ou=""
+            [[ "$ot" =~ ^[0-9]+$ ]] || ot=""
+
+            # Store overrides alongside index so dispatch can read them
             order+=("HOST:$idx")
 
             # Semaphore: wait for one job to finish before launching
@@ -372,10 +404,12 @@ run_server_loop() {
                 running=$((running - 1))
             fi
 
-            _check_cert_worker "$h" "$p" "$tmpdir/$idx" "$pr" &
+            _check_cert_worker "$h" "$p" "$tmpdir/$idx" "$pr" \
+                "${ow:-$WARN_DAYS}" "${oc:-$CRIT_DAYS}" \
+                "${ou:-$URGENT_DAYS}" "${ot:-$TIMEOUT}" &
             pids+=($!); running=$((running + 1)); idx=$((idx + 1))
         else
-            order+=("FORMAT_ERROR:$line")
+            order+=("FORMAT_ERROR:$_hostpart")
         fi
     done < "$file"
 
@@ -413,8 +447,8 @@ run_server_loop() {
 
 _escalation_on_cert_error() {
     local hostname="$1" port="$2" reason="$3" prev_status="$4" hours_since="$5"
-    local current_ts
-    current_ts=$($DATE_CMD +%s)
+    local current_ts="${6:-}"
+    [ -z "$current_ts" ] && current_ts=$($DATE_CMD +%s)
 
     if [ "$reason" = "Invalid port" ]; then
         if [ "$prev_status" != "ERROR_PORT" ]; then
@@ -443,8 +477,8 @@ _escalation_on_cert_result() {
     local hostname="$1" port="$2" days_left="$3" short_date="$4"
     local ca_name="$5" status="$6" prev_status="$7" hours_since="$8"
     local chain_status="${9:-OK}"
-    local current_ts
-    current_ts=$($DATE_CMD +%s)
+    local current_ts="${10:-}"
+    [ -z "$current_ts" ] && current_ts=$($DATE_CMD +%s)
 
     # Renewed certificate
     if [ "$status" = "OK" ]; then
@@ -496,6 +530,10 @@ _escalation_on_cert_result() {
 # install_escalation_hooks – wire on_cert_result / on_cert_error /
 # on_format_error to the shared escalation logic. Call this after
 # configure_wrapper and state_init, before run_server_loop.
+#
+# on_cert_error receives a 6th arg (current_ts) and on_cert_result
+# a 10th arg (current_ts) — passed from _dispatch_result so the
+# timestamp is computed once per host, not once per hook call.
 install_escalation_hooks() {
     on_cert_error() { _escalation_on_cert_error "$@"; }
     on_cert_result() { _escalation_on_cert_result "$@"; }
@@ -546,7 +584,7 @@ COL1=32; COL2=18; COL3=14; COL4=$CA_MAX_LEN
 
 ok=0; warn=0; crit=0
 
-# ── Flags ─────────────────────────────────────────────────────
+# ── Command-line options ─────────────────────────────────────
 if [[ "$1" == "--version" || "$1" == "-v" ]]; then
     printf "check-certs %s\n" "$VERSION"
     exit 0
@@ -556,29 +594,30 @@ if [[ "$1" == "--help" || "$1" == "-h" ]]; then
     printf "\n"
     printf "${BOLD}check-certs${NC} %s – SSL certificate checker\n" "$VERSION"
     printf "\n"
-    printf "  ${CYAN}check-certs${NC}                   Check all servers from servers.conf\n"
-    printf "  ${CYAN}check-certs${NC} <host>            Check a single server (port defaults to 443)\n"
-    printf "  ${CYAN}check-certs${NC} <host>:<port>     Check a single server on a specific port\n"
-    printf "  ${CYAN}check-certs${NC} <host>:<port>:<proto>  Check with explicit STARTTLS protocol\n"
-    printf "  ${CYAN}check-certs${NC} <host> <port>     Same as above, port as a second argument\n"
-    printf "  ${CYAN}check-certs --list${NC}             List all servers from servers.conf\n"
-    printf "  ${CYAN}check-certs --version${NC}          Show version\n"
-    printf "  ${CYAN}check-certs --help${NC}             Show this help\n"
+    printf "${BOLD}Usage:${NC}\n"
+    printf "  ${CYAN}check-certs${NC}                              Check all servers from servers.conf\n"
+    printf "  ${CYAN}check-certs${NC} <host>[:<port>[:<proto>]]   Check a single server (terminal table)\n"
+    printf "  ${CYAN}check-certs --check${NC} <host>[:<port>[:<proto>]]\n"
+    printf "                                           Structured output for scripting (exit code = severity)\n"
+    printf "  ${CYAN}check-certs --list${NC}                       List all servers from servers.conf\n"
+    printf "  ${CYAN}check-certs --clear-state${NC}                Clear all state files (forces fresh notifications)\n"
+    printf "  ${CYAN}check-certs --version${NC}                    Show version\n"
+    printf "  ${CYAN}check-certs --help${NC}                       Show this help\n"
     printf "\n"
-    printf "  ${BOLD}servers.conf format:${NC}\n"
-    printf "    ${DIM}[Group name]${NC}               Section header\n"
-    printf "    ${DIM}hostname:port${NC}              TLS (STARTTLS auto-detected by port)\n"
-    printf "    ${DIM}hostname:port:proto${NC}        Explicit protocol override\n"
-    printf "    ${DIM}# comment${NC}                  Ignored\n"
+    printf "${BOLD}servers.conf format:${NC}\n"
+    printf "  ${DIM}[Group name]${NC}                    Section header\n"
+    printf "  ${DIM}hostname:port${NC}                   TLS (STARTTLS auto-detected by port)\n"
+    printf "  ${DIM}hostname:port:proto${NC}             Explicit protocol override\n"
+    printf "  ${DIM}hostname:port warn=N crit=N${NC}     Per-host threshold overrides\n"
+    printf "  ${DIM}# comment${NC}                       Ignored\n"
     printf "\n"
-    printf "  ${BOLD}Protocols:${NC}\n"
-    printf "    STARTTLS: ${DIM}smtp submission imap pop3 ldap ftp xmpp${NC}\n"
-    printf "    Plain TLS aliases: ${DIM}tls https ldaps imaps pop3s smtps ftps${NC}\n"
-    printf "    Auto-detected: 25/587→smtp  143→imap  110→pop3\n"
-    printf "                   389→ldap  21→ftp  5222→xmpp\n"
+    printf "${BOLD}Protocols:${NC}\n"
+    printf "  STARTTLS: ${DIM}smtp submission imap pop3 ldap ftp xmpp${NC}\n"
+    printf "  Plain TLS aliases: ${DIM}tls https ldaps imaps pop3s smtps ftps${NC}\n"
+    printf "  Auto-detected: 25/587→smtp  143→imap  110→pop3  389→ldap  21→ftp  5222→xmpp\n"
     printf "\n"
-    printf "  ${BOLD}Thresholds${NC} (set in check-certs.conf):\n"
-    printf "    WARN_DAYS=%s  CRIT_DAYS=%s  URGENT_DAYS=%s\n" \
+    printf "${BOLD}Thresholds${NC} (set in check-certs.conf or per host in servers.conf):\n"
+    printf "  WARN_DAYS=%s  CRIT_DAYS=%s  URGENT_DAYS=%s\n" \
         "$WARN_DAYS" "$CRIT_DAYS" "$URGENT_DAYS"
     printf "\n"
     exit 0
@@ -596,23 +635,100 @@ if [[ "$1" == "--list" ]]; then
             [ -n "$local_group" ] && printf "\n"
             printf "  ${BLUE}${BOLD}[%s]${NC}\n" "${BASH_REMATCH[1]}"
             local_group="${BASH_REMATCH[1]}"
-        elif [[ "$line" =~ ^([^:]+):([0-9]+)(:([a-z]+))?$ ]]; then
-            _lh="${BASH_REMATCH[1]}" _lp="${BASH_REMATCH[2]}" _lpr="${BASH_REMATCH[4]}"
-            if [ -n "$_lpr" ]; then
-                printf "    %-38s ${DIM}(port %s, %s)${NC}\n" "$_lh" "$_lp" "$_lpr"
-            else
-                _auto=$(_starttls_proto "$_lp" "")
-                if [ -n "$_auto" ]; then
-                    printf "    %-38s ${DIM}(port %s, starttls/%s auto)${NC}\n" "$_lh" "$_lp" "$_auto"
+        else
+            _lhostpart="${line%% *}"
+            _loverrides="${line#"$_lhostpart"}"
+            _loverrides="${_loverrides# }"
+            if [[ "$_lhostpart" =~ ^([^:]+):([0-9]+)(:([a-z]+))?$ ]]; then
+                _lh="${BASH_REMATCH[1]}" _lp="${BASH_REMATCH[2]}" _lpr="${BASH_REMATCH[4]}"
+                if [ -n "$_lpr" ]; then
+                    _proto_str="port $_lp, $_lpr"
                 else
-                    printf "    %-38s ${DIM}(port %s)${NC}\n" "$_lh" "$_lp"
+                    _auto=$(_starttls_proto "$_lp" "")
+                    [ -n "$_auto" ] && _proto_str="port $_lp, starttls/$_auto auto" \
+                                    || _proto_str="port $_lp"
                 fi
+                [ -n "$_loverrides" ] && _proto_str="$_proto_str | $_loverrides"
+                printf "    %-38s ${DIM}(%s)${NC}\n" "$_lh" "$_proto_str"
+                local_count=$((local_count + 1))
             fi
-            local_count=$((local_count + 1))
         fi
     done < "$SERVER_FILE"
     printf "\n  ${BOLD}%d server(s) total${NC}\n\n" "$local_count"
     exit 0
+fi
+
+# ── Clear state ───────────────────────────────────────────────
+if [[ "$1" == "--clear-state" ]]; then
+    if [ -z "${STATE_FILE:-}" ]; then
+        echo "Error: STATE_FILE is not configured." >&2
+        echo "Set STATE_FILE in check-certs.conf or pass it as an environment variable." >&2
+        exit 1
+    fi
+    _state_dir="$(dirname "$STATE_FILE")"
+    if [ ! -d "$_state_dir" ]; then
+        echo "Error: state directory not found: $_state_dir" >&2
+        exit 1
+    fi
+    _cleared=0
+    for _sf in "$_state_dir"/state-*; do
+        [ -f "$_sf" ] || continue
+        > "$_sf"
+        printf "Cleared: %s\n" "$_sf"
+        _cleared=$(( _cleared + 1 ))
+    done
+    if [ "$_cleared" -eq 0 ]; then
+        printf "No state files found in %s\n" "$_state_dir"
+    else
+        printf "%d state file(s) cleared. Next run will send fresh notifications.\n" "$_cleared"
+    fi
+    exit 0
+fi
+
+# ── Structured single-server check ───────────────────────────
+if [[ "$1" == "--check" ]]; then
+    _ch_arg="${2:-}"
+    if [ -z "$_ch_arg" ]; then
+        echo "Usage: check-certs --check <host>[:<port>[:<proto>]]" >&2
+        exit 1
+    fi
+
+    # Parse host:port:proto
+    _ch_host="$_ch_arg"
+    _ch_port="443"
+    _ch_proto=""
+    if [[ "$_ch_arg" =~ ^([^:]+):([0-9]+)(:([a-z]+))?$ ]]; then
+        _ch_host="${BASH_REMATCH[1]}"
+        _ch_port="${BASH_REMATCH[2]}"
+        _ch_proto="${BASH_REMATCH[4]}"
+    fi
+
+    _ch_tmp=$(mktemp) || { echo "Error: mktemp failed" >&2; exit 2; }
+    trap 'rm -f "$_ch_tmp"' EXIT
+    _check_cert_worker "$_ch_host" "$_ch_port" "$_ch_tmp" "$_ch_proto"
+
+    # Output worker fields in lowercase, skipping TYPE=.
+    # PROTO= is empty for plain TLS — normalise to "tls".
+    # Use cut -d= -f2- to preserve = signs in values (e.g. CA names).
+    while IFS= read -r _line; do
+        _key="${_line%%=*}"
+        _val="${_line#*=}"
+        [ "$_key" = "TYPE" ] && continue
+        [ "$_key" = "PROTO" ] && _val="${_val:-tls}"
+        printf '%s=%s\n' "$(printf '%s' "$_key" | tr 'A-Z' 'a-z')" "$_val"
+    done < "$_ch_tmp"
+
+    # Exit code reflects severity
+    _ch_status=$(_worker_field "$_ch_tmp" STATUS)
+    _ch_type=$(_worker_field "$_ch_tmp" TYPE)
+    [ "$_ch_type" = "ERROR" ] && exit 2
+    case "$_ch_status" in
+        OK)                exit 0 ;;
+        WARNING)           exit 1 ;;
+        CRITICAL|EXPIRED)  exit 2 ;;
+        URGENT)            exit 3 ;;
+        *)                 exit 2 ;;
+    esac
 fi
 
 # ── Table helpers ────────────────────────────────────────────

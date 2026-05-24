@@ -1,5 +1,7 @@
 # check-certs
 
+[🇩🇪 Auf Deutsch lesen](README-DE.md)
+
 You know that sinking feeling when a user calls to say your site is showing a scary browser warning? Or when your LDAP authentication silently dies at 3am because a certificate quietly expired while you were busy with other things – like sleeping?
 
 check-certs is a certificate monitoring tool that watches expiry dates across all your servers and alerts you well before anything breaks. It checks in parallel, verifies the full certificate chain (not just the leaf), understands STARTTLS protocols like SMTP, IMAP and LDAP, and tracks state between runs so you only hear about something when it actually changes. Alerts go wherever you want them: a colour-coded terminal table for a quick glance, native macOS notifications, email, an HTTP webhook, or Pushover mobile push with emergency-priority acknowledgement for the ones that really can't wait.
@@ -17,9 +19,9 @@ No more surprise expirations. No more embarrassing phone calls. Just certificate
 - [Server configuration](#server-configuration)
 - [Configuration](#configuration)
 - [Usage](#usage)
+- [Single-server check](#single-server-check)
 - [Output](#output)
 - [How it works](#how-it-works)
-- [Adjusting thresholds](#adjusting-thresholds)
 - [Background monitoring](#background-monitoring)
 - [Files](#files)
 - [Troubleshooting](#troubleshooting)
@@ -34,15 +36,15 @@ check-certs consists of `check-certs.sh` and the automation variants built on to
 
 **`check-certs.sh`** is the main script – a colour-coded terminal table that works on both macOS and Linux. It also contains the shared core logic that all automation variants build on. Start here. Both installers always include it.
 
-Three optional automation variants extend it with background monitoring:
+Five optional automation variants extend it with background monitoring:
 
 | Variant | Script | Platform | Details |
 | ------- | ------ | -------- | ------- |
 | **Notification** | `check-certs-notify.sh` | macOS | Native notifications via launchd → [docs/macos-notify.md](docs/macos-notify.md) |
 | **Email** | `check-certs-mail.sh` | Linux + macOS | Email via Postfix, ssmtp, or sendmail, selected by `MAIL_TRANSPORT` → [docs/email.md](docs/email.md) |
-| **Webhook** | `check-certs-webhook.sh` | Any | HTTP POST to Slack, ntfy, Teams, custom endpoints → [docs/webhook.md](docs/webhook.md) |
-| **Teams** | `check-certs-teams.sh` | Any | Adaptive Card to Microsoft Teams via Workflow webhook → [docs/teams.md](docs/teams.md) |
-| **Pushover** | `check-certs-pushover.sh` | Any | Mobile push with priority levels and emergency acknowledgement → [docs/pushover.md](docs/pushover.md) |
+| **Webhook** | `check-certs-webhook.sh` | Linux + macOS | HTTP POST to Slack, ntfy, Teams, custom endpoints → [docs/webhook.md](docs/webhook.md) |
+| **Teams** | `check-certs-teams.sh` | Linux + macOS | Adaptive Card to Microsoft Teams via Workflow webhook → [docs/teams.md](docs/teams.md) |
+| **Pushover** | `check-certs-pushover.sh` | Linux + macOS | Mobile push with priority levels and emergency acknowledgement → [docs/pushover.md](docs/pushover.md) |
 
 **Key features:**
 
@@ -59,10 +61,10 @@ Three optional automation variants extend it with background monitoring:
 
 **Requires:** Homebrew (`coreutils` and `openssl` are installed automatically).
 
-**Automatic** – installs `check-certs.sh`, sets up the alias, and optionally configures one or more automation variants (notifications, email, webhook, Pushover) via launchd:
+**Automatic** – installs `check-certs.sh`, sets up the alias, and optionally configures one or more automation variants (notifications, email, webhook, Teams, Pushover) via launchd:
 
 ```bash
-chmod +x install/install-macos.sh && ./install/install-macos.sh
+chmod +x install/install.sh && ./install/install.sh
 ```
 
 **Manual** – terminal table only:
@@ -70,7 +72,7 @@ chmod +x install/install-macos.sh && ./install/install-macos.sh
 ```bash
 brew install coreutils openssl
 mkdir -p ~/scripts/check-certs
-cp src/check-certs.sh src/servers.conf config/check-certs.conf ~/scripts/check-certs/
+cp src/check-certs.sh config/servers.conf config/check-certs.conf ~/scripts/check-certs/
 chmod +x ~/scripts/check-certs/check-certs.sh
 echo 'alias check-certs="$HOME/scripts/check-certs/check-certs.sh"' >> ~/.zshrc
 source ~/.zshrc
@@ -85,7 +87,7 @@ GNU `date` is available natively — no Homebrew or `coreutils` needed.
 **Automatic** (Debian/Ubuntu) – installs `check-certs.sh` and optionally configures one or more automation variants (email, webhook, Teams, Pushover) via cron:
 
 ```bash
-chmod +x install/install-linux.sh && sudo ./install/install-linux.sh
+chmod +x install/install.sh && sudo ./install/install.sh
 ```
 
 **Manual** – terminal table only:
@@ -133,8 +135,24 @@ custom.example.com:8443:tls
 
 **Entry format:** `hostname:port` or `hostname:port:proto`
 
-STARTTLS is automatically applied on standard ports. Use the optional `:proto`
-field to override detection or to force plain TLS on a non-standard port.
+STARTTLS is automatically applied on standard ports. Optional `key=value` pairs
+after the port field override the global thresholds for that server:
+
+| Override | Description |
+| -------- | ----------- |
+| `warn=N` | Warning threshold in days |
+| `crit=N` | Critical threshold in days |
+| `urgent=N` | Urgent threshold in days (0 = disabled) |
+| `timeout=N` | Connection timeout in seconds |
+
+```
+api.example.com:443 warn=30 crit=14   # stricter thresholds for a critical API
+internal.example.com:443 warn=7        # more relaxed for internal tools
+slow.example.com:443 timeout=15        # longer timeout for a slow host
+```
+
+`check-certs --list` shows active overrides next to each entry. Use the optional `:proto`
+field to override protocol detection or to force plain TLS on a non-standard port.
 
 | Port(s) | Auto-detected protocol |
 | ------- | ---------------------- |
@@ -177,8 +195,11 @@ Key settings:
 | `MAIL_TO_URGENT` | – | Second recipient for urgent alerts (email variant) |
 | `MAIL_FROM` | – | Sender address (email variant) |
 | `WEBHOOK_URL` | – | URL to POST findings to (webhook variant) |
+| `TEAMS_WEBHOOK_URL` | – | Teams Workflow webhook URL (Teams variant) |
+| `PUSHOVER_APP_TOKEN` | – | Pushover application token (Pushover variant) |
+| `PUSHOVER_USER_KEY` | – | Pushover user or group key (Pushover variant) |
 
-> An existing `check-certs.conf` is **never overwritten** during reinstallation.
+> On reinstallation, an existing `check-certs.conf` is backed up to `check-certs.conf.bak` before being overwritten with the new settings.
 
 ---
 
@@ -191,8 +212,85 @@ check-certs <hostname>:<port>        # Check a single server on a specific port
 check-certs <hostname>:<port>:<proto> # Check with explicit STARTTLS protocol
 check-certs <hostname> <port>        # Same as above, port as a second argument
 check-certs --list                   # List all servers without running checks
+check-certs --check <host>:<port>    # Structured output for one server (scriptable)
+check-certs --clear-state            # Clear all state files (forces fresh notifications)
 check-certs --version                # Show version
 check-certs --help                   # Show help
+```
+
+---
+
+## Single-server check
+
+`check-certs --check` performs a structured check on one server and prints
+machine-readable output — useful for scripting, monitoring integrations, and
+testing STARTTLS configuration.
+
+```bash
+check-certs --check <host>[:<port>[:<proto>]]
+```
+
+**Examples:**
+
+```bash
+check-certs --check example.com
+check-certs --check mail.example.com:587
+check-certs --check ldap.example.com:636:ldaps
+check-certs --check ldap-plain.example.com:389        # STARTTLS auto-detected
+```
+
+**Output** — one `key=value` pair per line:
+
+```
+host=mail.example.com
+port=587
+proto=smtp
+days=12
+expiry=Jun 01 2026
+ca=Let's Encrypt
+status=WARNING
+chain=OK
+```
+
+> Fields are output in worker order. Parse by key name, not position.
+
+| Field | Description |
+| ----- | ----------- |
+| `host` | Hostname as given |
+| `port` | Port checked |
+| `proto` | STARTTLS protocol used (`smtp`, `ldap`, …) or `tls` for plain TLS |
+| `status` | `OK`, `WARNING`, `CRITICAL`, `URGENT`, `EXPIRED`, or `ERROR` |
+| `days` | Days until expiry (negative if already expired) |
+| `expiry` | Expiry date (`Mon DD YYYY`) |
+| `ca` | Certificate issuer name |
+| `chain` | `OK` or a chain verification error message |
+
+On `ERROR` (unreachable or invalid port), only `host`, `port`, `proto`,
+`status`, and `reason` are printed.
+
+**Exit codes:**
+
+| Code | Meaning |
+| ---- | ------- |
+| `0` | OK |
+| `1` | WARNING |
+| `2` | CRITICAL, EXPIRED, or ERROR |
+| `3` | URGENT |
+
+**Scripting examples:**
+
+```bash
+# Branch on exit code
+if ! check-certs --check api.example.com; then
+    echo "Certificate issue on api.example.com"
+fi
+
+# Parse a specific field
+days=$(check-certs --check cert.example.com | grep "^days=" | cut -d= -f2)
+[ "$days" -lt 14 ] && send_alert "Certificate expiring in ${days}d"
+
+# Use as a Nagios/Icinga plugin — exit code maps directly to plugin severity
+check-certs --check monitor.example.com:443
 ```
 
 ---
@@ -236,22 +334,6 @@ The concurrency limit (`MAX_JOBS` in `check-certs.conf`) prevents resource spike
 
 ---
 
-## Adjusting thresholds
-
-Edit `check-certs.conf` in the installation directory:
-
-```bash
-nano ~/scripts/check-certs/check-certs.conf
-```
-
-```bash
-WARN_DAYS=15    # Yellow below this number of remaining days
-CRIT_DAYS=7     # Red below this threshold
-URGENT_DAYS=2   # 0 disables the urgent level
-```
-
----
-
 ## Background monitoring
 
 Once you have `check-certs.sh` set up, you can add automated background monitoring:
@@ -285,17 +367,18 @@ src/
 ├── check-certs.sh               ← Main script – terminal table + core logic
 ├── check-certs-notify.sh        ← macOS notification variant
 ├── check-certs-mail.sh          ← Email variant (Postfix, ssmtp, or sendmail, Linux + macOS)
-├── check-certs-webhook.sh       ← Webhook variant (HTTP POST, any platform)
-├── check-certs-pushover.sh      ← Pushover variant (mobile push, any platform)
-└── check-certs-teams.sh         ← Teams variant (Adaptive Card, any platform)
+├── check-certs-webhook.sh       ← Webhook variant (HTTP POST, Linux + macOS)
+├── check-certs-pushover.sh      ← Pushover variant (mobile push, Linux + macOS)
+└── check-certs-teams.sh         ← Teams variant (Adaptive Card, Linux + macOS)
 
 install/
-├── install-macos.sh             ← Installer for macOS
-├── install-linux.sh             ← Installer for Debian/Ubuntu
-├── com.check-certs.notify.plist ← launchd job template (notifications)
+├── install.sh                   ← Unified installer (macOS and Linux)
+├── com.check-certs.notify.plist   ← launchd job template (notifications)
+├── com.check-certs.mail.plist     ← launchd job template (email)
 ├── com.check-certs.webhook.plist  ← launchd job template (webhook)
 ├── com.check-certs.pushover.plist ← launchd job template (Pushover)
-└── check-certs.logrotate        ← logrotate config for the email variant
+├── com.check-certs.teams.plist    ← launchd job template (Teams)
+└── check-certs.logrotate          ← logrotate config for the email variant
 
 config/
 ├── servers.conf                 ← Example server list
@@ -313,12 +396,12 @@ config/
 | *"Unreachable"* | `openssl s_client -connect hostname:port </dev/null` |
 | *"Invalid format"* | Separator in `servers.conf` must be `:`, not `,` |
 | CA shows "Unknown" | `openssl s_client -connect hostname:port </dev/null 2>/dev/null \| openssl x509 -noout -issuer` |
-| Chain always shows invalid | Verify SNI: `openssl s_client -connect hostname:port -servername hostname </dev/null` |
+| Chain always shows invalid | Usually a missing intermediate CA in the local trust store. Update your CA certificates (`brew install ca-certificates` on macOS, `apt install ca-certificates` on Linux). Also verify with: `openssl s_client -connect hostname:port -servername hostname </dev/null` |
 | *"gdate: command not found"* | macOS only: `brew install coreutils` |
 | *"Homebrew not found"* | `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"` |
 | `check-certs` command not found | Run `source ~/.zshrc` (macOS) or `source ~/.bashrc` (Linux) |
 
-For notification, email and webhook specific errors see [docs/troubleshooting.md](docs/troubleshooting.md).
+For further troubleshooting and wrapper-specific issues see [docs/troubleshooting.md](docs/troubleshooting.md).
 
 ---
 

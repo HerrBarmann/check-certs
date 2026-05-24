@@ -29,8 +29,8 @@ This is an optional add-on. `check-certs.sh` (the terminal table) must already b
 Run the macOS installer and select **1) Notifications** when prompted (option numbers may shift as new variants are added — check the menu):
 
 ```bash
-chmod +x install/install-macos.sh
-./install/install-macos.sh
+chmod +x install/install.sh
+./install/install.sh
 ```
 
 The installer prompts for thresholds and run time, writes `check-certs.conf`, copies the scripts and sets up the launchd job.

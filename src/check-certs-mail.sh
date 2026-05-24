@@ -1,24 +1,29 @@
 #!/bin/bash
 
 # ============================================================
-#  check-certs-mail.sh – Linux email wrapper
-#  Runs daily via cron job. Sends email when findings change
-#  or when a daily reminder is due for persistent issues.
+#  check-certs-mail.sh – Email wrapper (Linux and macOS)
+#  Runs daily via cron (Linux) or launchd (macOS). Sends
+#  email when findings change or when a daily reminder is
+#  due for persistent issues.
 #
 #  Mail transport is selected via MAIL_TRANSPORT in
 #  check-certs.conf:
-#    MAIL_TRANSPORT=postfix    – send via mailutils (default)
-#    MAIL_TRANSPORT=ssmtp      – send via ssmtp
-#    MAIL_TRANSPORT=sendmail   – send via sendmail (or any MTA with
-#                                a sendmail-compatible interface)
+#    MAIL_TRANSPORT=postfix    – send via mailutils (Linux)
+#    MAIL_TRANSPORT=ssmtp      – send via ssmtp (Linux + macOS)
+#    MAIL_TRANSPORT=sendmail   – send via any MTA providing
+#                                a sendmail-compatible interface
 #
 #  Requirements:
 #    postfix:   openssl, mailutils  (apt install mailutils)
-#    ssmtp:     openssl, ssmtp      (apt install ssmtp)
+#    ssmtp:     openssl, ssmtp      (apt install ssmtp / brew install ssmtp)
 #    sendmail:  openssl, any MTA providing /usr/sbin/sendmail
 #
-#  Cron job example (daily at 07:00):
-#    0 7 * * * /opt/check-certs/check-certs-mail.sh
+#  Schedule:
+#    Linux cron (daily at 07:00):
+#      0 7 * * * /opt/check-certs/check-certs-mail.sh
+#    macOS launchd (daily at 07:00):
+#      use install/com.check-certs.mail.plist
+#      (installed automatically by install.sh)
 # ============================================================
 
 CORE="$(dirname "$0")/check-certs.sh"
@@ -32,8 +37,7 @@ source "$CORE"
 configure_wrapper
 
 # ── State file default for this variant ──────────────────────
-# Default to a variant-specific state file so multiple variants can
-# coexist without interfering with each other's escalation tracking.
+# Each variant has its own state file so multiple variants can run side by side.
 if [ -z "${STATE_FILE:-}" ]; then
     if [[ "$(uname)" == "Darwin" ]]; then
         STATE_FILE="$HOME/Library/Application Support/check-certs/state-mail"
@@ -60,7 +64,7 @@ case "$MAIL_TRANSPORT" in
         fi ;;
     ssmtp)
         if ! command -v ssmtp &>/dev/null; then
-            echo "Error: 'ssmtp' not found. Install it: apt install ssmtp" >&2
+            echo "Error: 'ssmtp' not found. Install: apt install ssmtp (Linux) or brew install ssmtp (macOS)" >&2
             exit 1
         fi ;;
     sendmail)
@@ -210,7 +214,7 @@ _build_table() {
 # ── Run ──────────────────────────────────────────────────────
 run_server_loop "$SERVER_FILE"
 
-timestamp="$(date '+%Y-%m-%d at %H:%M')"
+timestamp="$($DATE_CMD '+%Y-%m-%d at %H:%M')"
 summary="Servers checked: ${total}  |  Non-OK: ${warned}  |  Errors: ${errors}"
 
 if [ "$new_issues" -gt 0 ]; then
@@ -221,11 +225,11 @@ if [ "$new_issues" -gt 0 ]; then
     body+="Please renew the affected certificates promptly."$'\n'
 
     if echo "$report_new" | grep -q "URGENT\|EXPIRED"; then
-        subject="[check-certs] URGENT - Certificate expiring ($(date '+%Y-%m-%d'))"
+        subject="[check-certs] URGENT - Certificate expiring ($($DATE_CMD '+%Y-%m-%d'))"
         _send_mail "$subject" "$MAIL_TO" "$body"
         [ "$MAIL_TO_URGENT" != "$MAIL_TO" ] && _send_mail "$subject" "$MAIL_TO_URGENT" "$body"
     else
-        _send_mail "[check-certs] Certificate warning ($(date '+%Y-%m-%d'))" "$MAIL_TO" "$body"
+        _send_mail "[check-certs] Certificate warning ($($DATE_CMD '+%Y-%m-%d'))" "$MAIL_TO" "$body"
     fi
     logger -t check-certs "New findings sent – ${new_issues} new, ${errors} errors of ${total} checked"
 fi
@@ -238,11 +242,11 @@ if [ "$reminders" -gt 0 ]; then
     body+="These certificates have already been reported and have not yet been renewed."$'\n'
 
     if echo "$report_reminder" | grep -q "URGENT\|EXPIRED"; then
-        subject="[check-certs] URGENT - Certificate reminder ($(date '+%Y-%m-%d'))"
+        subject="[check-certs] URGENT - Certificate reminder ($($DATE_CMD '+%Y-%m-%d'))"
         _send_mail "$subject" "$MAIL_TO" "$body"
         [ "$MAIL_TO_URGENT" != "$MAIL_TO" ] && _send_mail "$subject" "$MAIL_TO_URGENT" "$body"
     else
-        _send_mail "[check-certs] Certificate reminder ($(date '+%Y-%m-%d'))" "$MAIL_TO" "$body"
+        _send_mail "[check-certs] Certificate reminder ($($DATE_CMD '+%Y-%m-%d'))" "$MAIL_TO" "$body"
     fi
     logger -t check-certs "Reminder sent – ${reminders} known issues"
 fi

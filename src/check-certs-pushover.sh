@@ -21,7 +21,7 @@
 #    0 7 * * * /opt/check-certs/check-certs-pushover.sh
 #
 #  launchd: use install/com.check-certs.pushover.plist
-#           (installed automatically by install-macos.sh)
+#           (installed automatically by install.sh)
 # ============================================================
 
 CORE="$(dirname "$0")/check-certs.sh"
@@ -83,17 +83,17 @@ fi
 
 # ── Logging ──────────────────────────────────────────────────
 log() {
-    printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$LOG_FILE"
+    printf '[%s] %s\n' "$($DATE_CMD '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$LOG_FILE"
 }
 
 log_cert() {
     local hostname="$1" days="$2" status="$3" note="${4:-}"
     if [ -n "$note" ]; then
         printf '[%s] %-38s %6s  %-12s %s\n' \
-            "$(date '+%Y-%m-%d %H:%M:%S')" "$hostname" "$days" "$status" "$note"
+            "$($DATE_CMD '+%Y-%m-%d %H:%M:%S')" "$hostname" "$days" "$status" "$note"
     else
         printf '[%s] %-38s %6s  %s\n' \
-            "$(date '+%Y-%m-%d %H:%M:%S')" "$hostname" "$days" "$status"
+            "$($DATE_CMD '+%Y-%m-%d %H:%M:%S')" "$hostname" "$days" "$status"
     fi | tee -a "$LOG_FILE"
 }
 
