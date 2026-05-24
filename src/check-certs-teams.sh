@@ -3,10 +3,9 @@
 # ============================================================
 #  check-certs-teams.sh – Microsoft Teams Adaptive Card wrapper
 #
-#  Sends a single Adaptive Card to a Teams Workflow webhook
-#  mirroring the terminal table output — all servers, grouped
-#  by section, with a colour-coded status column and summary.
-#
+#  Sends a single Adaptive Card to a Teams Workflow webhook.
+#  Only non-OK servers are shown, grouped by section. Empty
+#  groups are suppressed. A summary line covers all servers.
 #  The card is only sent when notification thresholds are
 #  reached (new findings or daily reminders). Silent runs
 #  produce no output.
@@ -15,14 +14,16 @@
 #    "Post to a channel when a webhook request is received"
 #    Copy the generated URL and set it as TEAMS_WEBHOOK_URL
 #    in check-certs.conf. No Power Automate configuration
-#    beyond the initial template setup is required — this
-#    wrapper sends a complete Adaptive Card directly.
+#    beyond the initial template setup is required.
 #
 #  Requirements: openssl, curl
 #  Configure:    TEAMS_WEBHOOK_URL in check-certs.conf
 #
-#  Cron job example (daily at 07:00):
-#    0 7 * * * /opt/check-certs/check-certs-teams.sh
+#  Schedule:
+#    Linux cron (daily at 07:00):
+#      0 7 * * * /opt/check-certs/check-certs-teams.sh
+#    macOS: use install/com.check-certs.teams.plist
+#           (installed automatically by install.sh)
 # ============================================================
 
 CORE="$(dirname "$0")/check-certs.sh"
@@ -164,7 +165,7 @@ if [ "$_has_findings" = false ]; then
 fi
 
 # ── Build Adaptive Card ───────────────────────────────────────
-_timestamp=$(date '+%Y-%m-%d %H:%M')
+_timestamp=$($DATE_CMD '+%Y-%m-%d %H:%M')
 
 # Determine overall severity for card header colour
 if [ "$warned" -eq 0 ] && [ "$errors" -eq 0 ]; then

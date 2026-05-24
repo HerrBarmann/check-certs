@@ -99,13 +99,10 @@ A `200` response means the workflow is reachable and a card should appear in
 your Teams channel.
 
 > **Tip:** If cards stop arriving after the first test run, the state file may
-> have recorded all issues as already notified. Clear it before testing:
+> have recorded all issues as already notified. Reset it before testing:
 >
 > ```bash
-> # macOS
-> > "$HOME/Library/Application Support/check-certs/state-teams"
-> # Linux
-> > /var/lib/check-certs/state-teams
+> check-certs --clear-state
 > ```
 
 ---
@@ -162,17 +159,15 @@ Add to `~/scripts/check-certs/check-certs.conf`:
 TEAMS_WEBHOOK_URL="https://prod-xx.westeurope.logic.azure.com:443/workflows/..."
 ```
 
-Set up the launchd job using the webhook plist template:
+Set up the launchd job using the dedicated Teams plist:
 
 ```bash
 sed \
-    -e "s|com.check-certs.webhook|com.check-certs.teams|g" \
-    -e "s|check-certs-webhook|check-certs-teams|g" \
     -e "s|SCRIPT_PATH_PLACEHOLDER|$HOME/scripts/check-certs/check-certs-teams.sh|g" \
     -e "s|HOUR_PLACEHOLDER|7|g" \
     -e "s|MINUTE_PLACEHOLDER|0|g" \
     -e "s|LOGDIR_PLACEHOLDER|$HOME/Library/Logs/check-certs|g" \
-    install/com.check-certs.webhook.plist \
+    install/com.check-certs.teams.plist \
     > ~/Library/LaunchAgents/com.check-certs.teams.plist
 launchctl load ~/Library/LaunchAgents/com.check-certs.teams.plist
 ```
@@ -230,14 +225,20 @@ TEAMS_DEBUG=true ./check-certs-teams.sh
 **Run alongside other variants:** Each variant uses its own state file
 (`state-teams`) so they track escalation independently.
 
-**Reset state** (forces a fresh notification on next run):
+**Reset state** (forces fresh notifications on the next run):
 
 ```bash
-# macOS
-> "$HOME/Library/Application Support/check-certs/state-teams"
+check-certs --clear-state
+```
 
+To clear the state file manually:
+
+```bash
 # Linux
 > /var/lib/check-certs/state-teams
+
+# macOS
+> "$HOME/Library/Application Support/check-certs/state-teams"
 ```
 
 **Disable:**
@@ -259,7 +260,7 @@ crontab -e
 already notified. Reset it and run again:
 
 ```bash
-> /var/lib/check-certs/state-teams   # Linux
+check-certs --clear-state
 TEAMS_DEBUG=true /opt/check-certs/check-certs-teams.sh
 ```
 

@@ -5,15 +5,18 @@
 #
 #  Posts a JSON payload to a configurable URL for each new
 #  finding and reminder. Works with Slack incoming webhooks,
-#  ntfy.sh, Teams, Mattermost, custom endpoints, or any
-#  service that accepts HTTP POST with a JSON body.
+#  ntfy.sh, Mattermost, custom endpoints, or any service
+#  that accepts HTTP POST with a JSON body. For Microsoft
+#  Teams, use check-certs-teams.sh instead.
 #
 #  Requirements: openssl, curl
-#  Configure: set WEBHOOK_URL (and optionally auth) in
-#             check-certs.conf
+#  Configure:    WEBHOOK_URL in check-certs.conf
 #
-#  Cron job example (daily at 07:00):
-#    0 7 * * * /opt/check-certs/check-certs-webhook.sh
+#  Schedule:
+#    Linux cron (daily at 07:00):
+#      0 7 * * * /opt/check-certs/check-certs-webhook.sh
+#    macOS: use install/com.check-certs.webhook.plist
+#           (installed automatically by install.sh)
 # ============================================================
 
 CORE="$(dirname "$0")/check-certs.sh"
@@ -27,8 +30,7 @@ source "$CORE"
 configure_wrapper
 
 # ── State file default for this variant ──────────────────────
-# Default to a variant-specific state file so multiple variants can
-# coexist without interfering with each other's escalation tracking.
+# Each variant has its own state file so multiple variants can run side by side.
 if [ -z "${STATE_FILE:-}" ]; then
     if [[ "$(uname)" == "Darwin" ]]; then
         STATE_FILE="$HOME/Library/Application Support/check-certs/state-webhook"
@@ -64,6 +66,7 @@ _json_str() {
     s="${s//\"/\\\"}"   # double quote
     s="${s//$'\n'/\\n}" # newline
     s="${s//$'\t'/\\t}" # tab
+    s="${s//%/%%}"             # escape % for printf safety
     printf '%s' "$s"
 }
 
@@ -103,7 +106,7 @@ _post_event() {
     local type="$1" hostname="$2" status="$3" days_left="$4"
     local short_date="$5" ca_name="$6" chain_status="${7:-OK}"
     local timestamp
-    timestamp="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    timestamp="$($DATE_CMD -u '+%Y-%m-%dT%H:%M:%SZ')"
 
     # days_left is an integer for cert results, "-" for errors → use null
     local days_json
@@ -152,7 +155,7 @@ run_server_loop "$SERVER_FILE"
 
 # ── Post summary ─────────────────────────────────────────────
 if [ "$WEBHOOK_SEND_SUMMARY" = "true" ]; then
-    timestamp="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    timestamp="$($DATE_CMD -u '+%Y-%m-%dT%H:%M:%SZ')"
     payload=$(printf '{"event":"summary","timestamp":"%s","total":%d,"warned":%d,"errors":%d,"new_issues":%d,"reminders":%d}' \
         "$(_json_str "$timestamp")" \
         "$total" "$warned" "$errors" "$new_issues" "$reminders")

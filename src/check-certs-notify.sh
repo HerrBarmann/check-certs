@@ -8,7 +8,7 @@
 #
 #  Requirements: openssl, coreutils, terminal-notifier
 #    brew install coreutils terminal-notifier
-#  Setup: ./install/install-macos.sh
+#  Setup: ./install/install.sh
 # ============================================================
 
 CORE="$(dirname "$0")/check-certs.sh"
@@ -23,27 +23,26 @@ configure_wrapper
 
 # ── Variant-specific defaults (applied after config file) ────
 : "${LOG_FILE:=$HOME/Library/Logs/check-certs/check-certs-notify.log}"
-# Default to a variant-specific state file so multiple variants can
-# coexist without interfering with each other's escalation tracking.
+# Each variant has its own state file so multiple variants can run side by side.
 : "${STATE_FILE:=$HOME/Library/Application Support/check-certs/state-notify}"
 
-# Initialise state and ensure log directory exists
+# Initialise the state file and create the log directory if needed.
 state_init
 mkdir -p "$(dirname "$LOG_FILE")"
 
 # ── Logging ──────────────────────────────────────────────────
 log() {
-    printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$LOG_FILE"
+    printf '[%s] %s\n' "$($DATE_CMD '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$LOG_FILE"
 }
 
 log_cert() {
     local hostname="$1" days="$2" status="$3" note="${4:-}"
     if [ -n "$note" ]; then
         printf '[%s] %-38s %6s  %-12s %s\n' \
-            "$(date '+%Y-%m-%d %H:%M:%S')" "$hostname" "$days" "$status" "$note"
+            "$($DATE_CMD '+%Y-%m-%d %H:%M:%S')" "$hostname" "$days" "$status" "$note"
     else
         printf '[%s] %-38s %6s  %s\n' \
-            "$(date '+%Y-%m-%d %H:%M:%S')" "$hostname" "$days" "$status"
+            "$($DATE_CMD '+%Y-%m-%d %H:%M:%S')" "$hostname" "$days" "$status"
     fi | tee -a "$LOG_FILE"
 }
 
@@ -83,9 +82,9 @@ APPLESCRIPT
 # Pick the most severe entry to show first in a bundled message
 _build_message() {
     local lines="$1" count="$2" first rest
-    first=$(echo "$lines" | grep -m1 "urgent\|EXPIRED" || \
-            echo "$lines" | grep -m1 "critical" || \
-            echo "$lines" | head -1)
+    first=$(printf '%s' "$lines" | grep -m1 "urgent\|EXPIRED" || \
+            printf '%s' "$lines" | grep -m1 "critical" || \
+            printf '%s' "$lines" | head -1)
     rest=$(( count - 1 ))
     [ "$rest" -gt 0 ] && echo "${first} (+${rest} more)" || echo "$first"
 }

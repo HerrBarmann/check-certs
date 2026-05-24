@@ -6,7 +6,7 @@
 
     <!-- Unique job identifier -->
     <key>Label</key>
-    <string>com.check-certs.pushover</string>
+    <string>com.check-certs.teams</string>
 
     <!-- Path to script – set automatically by install.sh -->
     <key>ProgramArguments</key>
@@ -26,9 +26,9 @@
 
     <!-- Write output to log files -->
     <key>StandardOutPath</key>
-    <string>LOGDIR_PLACEHOLDER/check-certs-pushover.log</string>
+    <string>LOGDIR_PLACEHOLDER/check-certs-teams.log</string>
     <key>StandardErrorPath</key>
-    <string>LOGDIR_PLACEHOLDER/check-certs-pushover.error.log</string>
+    <string>LOGDIR_PLACEHOLDER/check-certs-teams.error.log</string>
 
     <!-- Do not run immediately when loaded -->
     <key>RunAtLoad</key>

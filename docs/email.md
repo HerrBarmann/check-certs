@@ -1,6 +1,6 @@
-# check-certs – Linux (Email)
+# check-certs – Email
 
-Runs daily via cron job and sends email reports for expiring certificates. A single script, `check-certs-mail.sh`, handles both Postfix and ssmtp – the transport is selected via `MAIL_TRANSPORT` in `check-certs.conf`.
+Runs daily via cron (Linux) or launchd (macOS) and sends email reports for expiring certificates. A single script, `check-certs-mail.sh`, supports Postfix, ssmtp, and sendmail — the transport is selected via `MAIL_TRANSPORT` in `check-certs.conf`.
 
 ← [Back to overview](../README.md)
 
@@ -21,14 +21,14 @@ Runs daily via cron job and sends email reports for expiring certificates. A sin
 
 ## Postfix vs ssmtp
 
-| | Postfix | ssmtp |
-| --- | ------- | ----- |
-| Setup complexity | More involved – multiple files, service | Minimal – one config file |
-| System service | Runs as a daemon | None – stateless binary |
-| Suitable for | Servers already running Postfix, complex needs | Simple relay to an external SMTP server |
-| Script | `check-certs-mail.sh` | `check-certs-mail.sh` |
-| Transport setting | `MAIL_TRANSPORT=postfix` | `MAIL_TRANSPORT=ssmtp` |
-| Installer | `install/install-linux.sh` | `install/install-linux.sh` |
+| | Postfix | ssmtp | sendmail |
+| --- | ------- | ----- | -------- |
+| Setup complexity | More involved — multiple files, daemon | Minimal — one config file | Depends on your MTA |
+| System service | Runs as a daemon | None — stateless binary | Depends on your MTA |
+| Platform | Linux | Linux + macOS | Linux + macOS |
+| Suitable for | Servers already running Postfix | Simple relay to an external SMTP server | Existing MTA with sendmail interface |
+| Transport setting | `MAIL_TRANSPORT=postfix` | `MAIL_TRANSPORT=ssmtp` | `MAIL_TRANSPORT=sendmail` |
+| Installer | `install/install.sh` | `install/install.sh` | `install/install.sh` |
 
 ---
 
@@ -38,7 +38,7 @@ Both variants share the same logic from `check-certs.sh`:
 
 - All servers are checked **in parallel** including full chain verification
 - A report is assembled and sent **only when there is something to report**
-- **State tracking** under `/var/lib/check-certs/state` ensures you only get emailed when something changes
+- **State tracking** under `state-mail` ensures you only get emailed when something changes
 
 | Level | Default | Behaviour |
 | ----- | ------- | --------- |
@@ -53,8 +53,8 @@ Both variants share the same logic from `check-certs.sh`:
 ## Automatic installation
 
 ```bash
-chmod +x install/install-linux.sh
-sudo ./install/install-linux.sh
+chmod +x install/install.sh
+sudo ./install/install.sh
 ```
 
 > Root privileges required for package installation and mail transport configuration.
@@ -143,7 +143,7 @@ MAIL_FROM=certcheck@server.example.com
 EOF
 ```
 
-Add the cron job:
+Add the cron job (Linux):
 
 ```bash
 crontab -e
@@ -151,6 +151,19 @@ crontab -e
 
 ```
 0 7 * * * /opt/check-certs/check-certs-mail.sh
+```
+
+Or on macOS, set up the launchd job:
+
+```bash
+sed \
+    -e "s|SCRIPT_PATH_PLACEHOLDER|$HOME/scripts/check-certs/check-certs-mail.sh|g" \
+    -e "s|HOUR_PLACEHOLDER|7|g" \
+    -e "s|MINUTE_PLACEHOLDER|0|g" \
+    -e "s|LOGDIR_PLACEHOLDER|$HOME/Library/Logs/check-certs|g" \
+    install/com.check-certs.mail.plist \
+    > ~/Library/LaunchAgents/com.check-certs.mail.plist
+launchctl load ~/Library/LaunchAgents/com.check-certs.mail.plist
 ```
 
 ### ssmtp
@@ -214,7 +227,7 @@ MAIL_FROM=certcheck@server.example.com
 EOF
 ```
 
-Add the cron job:
+Add the cron job (Linux):
 
 ```bash
 crontab -e
@@ -223,6 +236,8 @@ crontab -e
 ```
 0 7 * * * /opt/check-certs/check-certs-mail.sh
 ```
+
+Or on macOS, set up the launchd job (same command as above).
 
 ---
 
@@ -244,13 +259,20 @@ nano /opt/check-certs/check-certs.conf
 | `CRIT_DAYS` | Daily reminder below this threshold |
 | `URGENT_DAYS` | Escalation below this threshold |
 
-**Reset state:**
+**Reset state** (forces fresh notifications on the next run):
 
 ```bash
-# Single server
-sed -i '/hostname\.example\.com/d' /var/lib/check-certs/state
-# All servers
-> /var/lib/check-certs/state-mail
+check-certs --clear-state
+```
+
+To clear a single server's state entry manually:
+
+```bash
+# Linux
+sed -i '/hostname\.example\.com/d' /var/lib/check-certs/state-mail
+# macOS
+sed -i '' '/hostname\.example\.com/d' \
+    "$HOME/Library/Application Support/check-certs/state-mail"
 ```
 
 **Change cron job time:** Open the crontab and update the entry to your preferred time:
@@ -292,12 +314,12 @@ This rotates logs under `/var/log/check-certs/` weekly, keeps 8 weeks of compres
 
 Both transports produce the same report format. The subject line reflects the highest severity in the email:
 
-| Subject prefix | Condition |
-| -------------- | --------- |
-| `🚨 Certificate URGENT` | Any URGENT or EXPIRED finding |
-| `⚠ Certificate warning` | WARNING or CRITICAL findings only |
-| `🚨 Reminder: Certificate URGENT` | Reminder with URGENT or EXPIRED entry |
-| `🔁 Reminder: renew certificates` | Reminder for WARNING or CRITICAL only |
+| Subject | Condition |
+| ------- | --------- |
+| `[check-certs] URGENT - Certificate expiring` | Any URGENT or EXPIRED finding |
+| `[check-certs] Certificate warning` | WARNING or CRITICAL findings only |
+| `[check-certs] URGENT - Certificate reminder` | Reminder with URGENT or EXPIRED entry |
+| `[check-certs] Certificate reminder` | Reminder for WARNING or CRITICAL only |
 
 **New findings email:**
 

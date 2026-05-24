@@ -116,7 +116,7 @@ PUSHOVER_USER_KEY="your-user-key"
 CONF
 ```
 
-Set up a launchd job using the webhook plist template:
+Set up the launchd job using the dedicated Pushover plist:
 
 ```bash
 sed \
@@ -124,7 +124,7 @@ sed \
     -e "s|HOUR_PLACEHOLDER|7|g" \
     -e "s|MINUTE_PLACEHOLDER|0|g" \
     -e "s|LOGDIR_PLACEHOLDER|$HOME/Library/Logs/check-certs|g" \
-    install/com.check-certs.webhook.plist \
+    install/com.check-certs.pushover.plist \
     > ~/Library/LaunchAgents/com.check-certs.pushover.plist
 launchctl load ~/Library/LaunchAgents/com.check-certs.pushover.plist
 ```
@@ -216,7 +216,13 @@ PUSHOVER_EXPIRE=7200  # Give up after 2 hours
 
 **Send to a group instead of a user:** Replace `PUSHOVER_USER_KEY` with a Pushover group key. Group keys are created on the Pushover website and allow sending to multiple users simultaneously.
 
-**Reset state:**
+**Reset state** (forces fresh notifications on the next run):
+
+```bash
+check-certs --clear-state
+```
+
+This clears all state files in the state directory at once. To clear a single file manually:
 
 ```bash
 # Linux
