@@ -4,6 +4,14 @@ All notable changes to check-certs are documented here.
 
 ---
 
+## 2.5.3 — 2026-05-26
+
+### Change
+
+**Chain status is now a dedicated table column.** Previously, a broken certificate chain appended ` ⚠chain` to the CA name in the "Issued by" column, which overflowed the fixed column width and misaligned the table. The chain status is now shown in a separate narrow **Ch** column at the right edge of the table: `✓` (green, chain OK) or `⚠` (yellow, broken chain). The CA name column is now always clean and correctly padded. Error rows show an empty Ch cell.
+
+---
+
 ## 2.5.2 — 2026-05-26
 
 ### Bug fix

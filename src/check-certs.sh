@@ -2,7 +2,7 @@
 
 # ============================================================
 #  check-certs.sh – SSL certificate checker
-#  Version 2.5.2
+#  Version 2.5.3
 #
 #  STANDALONE USAGE (terminal table, macOS + Linux):
 #    check-certs [hostname[:port[:proto]]]          Terminal table (IPv6: [addr]:port[:proto])
@@ -53,7 +53,7 @@
 # ============================================================
 
 # ── Version ──────────────────────────────────────────────────
-VERSION="2.5.2"
+VERSION="2.5.3"
 
 # ── Date command ─────────────────────────────────────────────
 # macOS: gdate via coreutils; Linux: GNU date natively
@@ -739,7 +739,8 @@ GRP_L="╠"; GRP_R="╣"
 ROW_L="║"; ROW_M="║"; ROW_R="║"
 FTR_L="╚"; FTR_M="╩"; FTR_R="╝"
 H="═"
-COL1=32; COL2=18; COL3=14; COL4=$CA_MAX_LEN
+COL1=32; COL2=18; COL3=14; COL4=$CA_MAX_LEN; COL5=3
+# COL5 is the chain status column: ✓ (OK) or ⚠ (broken chain)
 
 ok=0; warn=0; crit=0
 
@@ -1140,19 +1141,20 @@ _repeat() {
 
 hline() {
     local left=$1 mid=$2 right=$3
-    printf "%s%s%s%s%s%s%s%s%s\n" \
+    printf "%s%s%s%s%s%s%s%s%s%s%s\n" \
         "$left" "$(_repeat "$H" $((COL1+2)))" \
         "$mid"  "$(_repeat "$H" $((COL2+2)))" \
         "$mid"  "$(_repeat "$H" $((COL3+2)))" \
         "$mid"  "$(_repeat "$H" $((COL4+2)))" \
+        "$mid"  "$(_repeat "$H" $((COL5+2)))" \
         "$right"
 }
 
 print_group() {
     local name="$1"
     # Inner width = total chars between GRP_L and GRP_R in a normal hline row:
-    # (COL1+2) + 1 + (COL2+2) + 1 + (COL3+2) + 1 + (COL4+2)
-    local inner=$(( COL1 + COL2 + COL3 + COL4 + 11 ))
+    # (COL1+2) + 1 + (COL2+2) + 1 + (COL3+2) + 1 + (COL4+2) + 1 + (COL5+2)
+    local inner=$(( COL1 + COL2 + COL3 + COL4 + COL5 + 14 ))
     # Visible label including surrounding spaces: " Name "
     local label=" ${name} "
     local pad=$(( inner - ${#label} ))
@@ -1164,11 +1166,12 @@ print_group() {
 print_error_row() {
     local hostname="$1" reason="$2"
     local pad=$(( COL3 - 5 ))
-    printf "%s %-*s %s %-*s %s %b%-5s%b%*s %s %-*s %s\n" \
+    printf "%s %-*s %s %-*s %s %b%-5s%b%*s %s %-*s %s %-*s %s\n" \
         "$ROW_L" $COL1 "$hostname" \
         "$ROW_M" $COL2 "-" \
         "$ROW_M" "$RED" "ERROR" "$NC" $pad "" \
         "$ROW_M" $COL4 "$reason" \
+        "$ROW_M" $COL5 "" \
         "$ROW_R"
 }
 
@@ -1196,25 +1199,33 @@ on_cert_result() {
         *)               color="$GREEN";  icon="✓"; text="${days_left}d";            ok=$((ok+1))   ;;
     esac
 
-    local ca_display="$ca_name"
-    [ "$chain_status" != "OK" ] && ca_display="${ca_name} ⚠chain"
+    # Chain column: ✓ green for OK, ⚠ yellow for any broken chain.
+    # Kept separate from the CA column so it never overflows the layout.
+    local chain_icon chain_color
+    if [ "$chain_status" = "OK" ]; then
+        chain_icon="✓"; chain_color="$GREEN"
+    else
+        chain_icon="⚠"; chain_color="$YELLOW"
+    fi
 
-    printf "%s %-*s %s %-*s %s %b%s%-*s%b %s %-*s %s\n" \
+    printf "%s %-*s %s %-*s %s %b%s%-*s%b %s %-*s %s %b%-*s%b %s\n" \
         "$ROW_L" $COL1 "$hostname" \
         "$ROW_M" $COL2 "$short_date" \
         "$ROW_M" "${color}" "$icon " $((COL3-2)) "$text" "${NC}" \
-        "$ROW_M" $COL4 "$ca_display" \
+        "$ROW_M" $COL4 "$ca_name" \
+        "$ROW_M" "${chain_color}" $COL5 "$chain_icon" "${NC}" \
         "$ROW_R"
 }
 
 # ── Run ──────────────────────────────────────────────────────
 echo ""
 hline "$HDR_L" "$HDR_M" "$HDR_R"
-printf "%s ${BOLD}%-*s${NC} %s ${BOLD}%-*s${NC} %s ${BOLD}%-*s${NC} %s ${BOLD}%-*s${NC} %s\n" \
+printf "%s ${BOLD}%-*s${NC} %s ${BOLD}%-*s${NC} %s ${BOLD}%-*s${NC} %s ${BOLD}%-*s${NC} %s ${BOLD}%-*s${NC} %s\n" \
     "$ROW_L" $COL1 "Server" \
     "$ROW_M" $COL2 "Expiry date" \
     "$ROW_M" $COL3 "Remaining" \
     "$ROW_M" $COL4 "Issued by" \
+    "$ROW_M" $COL5 "Ch" \
     "$ROW_R"
 hline "$MID_L" "$MID_M" "$MID_R"
 
