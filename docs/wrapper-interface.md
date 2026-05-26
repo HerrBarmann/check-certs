@@ -373,19 +373,26 @@ Set to zero by `configure_wrapper`. Updated by `run_server_loop`. Read after
 
 ## State API
 
-State is stored in a plain-text key=value file (`$STATE_FILE`). Use these
-functions rather than reading or writing the file directly.
+State is stored in a **directory** (`$STATE_FILE`). Each monitored host gets
+its own small file inside that directory. Use the provided functions rather
+than touching the directory contents directly.
 
 ```bash
 value=$(state_get "key")     # Returns empty string if key is absent
-state_set    "key" "value"   # Create or update a key
-state_delete "key"           # Remove a key
+state_set    "key" "value"   # Create or update a field
+state_delete "key"           # Remove a field (host file stays)
 ```
+
+`state_migrate` is called automatically by `state_init`. It detects a 2.4.x
+flat state file at the `$STATE_FILE` path and migrates it to the per-host
+directory layout, backing up the original as `$STATE_FILE.pre-2.5.bak`.
 
 To clear all state (force fresh notifications on next run):
 
 ```bash
 check-certs --clear-state
+# or target a specific variant's state directory:
+check-certs --clear-state --state-dir /var/lib/check-certs/state-mail
 ```
 
 **Keys written by the escalation logic:**

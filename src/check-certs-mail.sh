@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # ============================================================
-#  check-certs-mail.sh – Email wrapper (Linux and macOS)
-#  Runs daily via cron (Linux) or launchd (macOS). Sends
-#  email when findings change or when a daily reminder is
-#  due for persistent issues.
+#  check-certs-mail.sh – Email notification wrapper
+#  Runs daily via cron (Linux) or launchd (macOS). Sends an
+#  email when findings change or when a daily reminder is due
+#  for persistent issues. Silent when everything is OK.
 #
 #  Mail transport is selected via MAIL_TRANSPORT in
 #  check-certs.conf:
@@ -37,7 +37,8 @@ source "$CORE"
 configure_wrapper
 
 # ── State file default for this variant ──────────────────────
-# Each variant has its own state file so multiple variants can run side by side.
+# Each variant has its own state directory so multiple variants can run side by side.
+# The directory holds one small file per monitored host.
 if [ -z "${STATE_FILE:-}" ]; then
     if [[ "$(uname)" == "Darwin" ]]; then
         STATE_FILE="$HOME/Library/Application Support/check-certs/state-mail"
@@ -165,7 +166,9 @@ on_cert_result() {
 on_cert_error() {
     local hostname="$1" reason="$3" prev_status="$4" hours_since="$5"
     _escalation_on_cert_error "$@"
-    # Same logic: known persistent errors not yet due for a reminder.
+    # Add to the known-issues list when the error is persistent and not
+    # yet due for a reminder — same window logic as on_cert_result above.
+    # Translate reason to the stored state key to match prev_status.
     local err_status
     [ "$reason" = "Invalid port" ] && err_status="ERROR_PORT" || err_status="ERROR_CONNECT"
     if [ "$prev_status" = "$err_status" ] && [ "$hours_since" -lt 23 ]; then

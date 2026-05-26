@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # ============================================================
-#  check-certs-webhook.sh – Webhook wrapper for check-certs
+#  check-certs-webhook.sh – Webhook notification wrapper
 #
-#  Posts a JSON payload to a configurable URL for each new
-#  finding and reminder. Works with Slack incoming webhooks,
-#  ntfy.sh, Mattermost, custom endpoints, or any service
-#  that accepts HTTP POST with a JSON body. For Microsoft
-#  Teams, use check-certs-teams.sh instead.
+#  Posts a JSON payload to a configurable URL for each new finding
+#  and daily reminder. Works with Slack incoming webhooks, Mattermost,
+#  Grafana Alerting, PagerDuty, or any service that accepts HTTP POST
+#  with a JSON body. For Microsoft Teams use check-certs-teams.sh;
+#  for ntfy use check-certs-ntfy.sh.
 #
 #  Requirements: openssl, curl
 #  Configure:    WEBHOOK_URL in check-certs.conf
@@ -30,7 +30,8 @@ source "$CORE"
 configure_wrapper
 
 # ── State file default for this variant ──────────────────────
-# Each variant has its own state file so multiple variants can run side by side.
+# Each variant has its own state directory so multiple variants can run side by side.
+# The directory holds one small file per monitored host.
 if [ -z "${STATE_FILE:-}" ]; then
     if [[ "$(uname)" == "Darwin" ]]; then
         STATE_FILE="$HOME/Library/Application Support/check-certs/state-webhook"
@@ -99,7 +100,8 @@ _post() {
     return 0
 }
 
-# Build and post a certificate event payload.
+# Build and post a JSON certificate event payload to the webhook URL.
+# Retries once with a 5-second delay on failure.
 # $1 = type ("finding" or "reminder")
 # $2..7 = hostname status days_left short_date ca_name chain_status
 _post_event() {
