@@ -2,7 +2,7 @@
 
 # ============================================================
 #  check-certs.sh – SSL certificate checker
-#  Version 2.5.4
+#  Version 2.5.5
 #
 #  STANDALONE USAGE (terminal table, macOS + Linux):
 #    check-certs [hostname[:port[:proto]]]          Terminal table (IPv6: [addr]:port[:proto])
@@ -53,7 +53,7 @@
 # ============================================================
 
 # ── Version ──────────────────────────────────────────────────
-VERSION="2.5.4"
+VERSION="2.5.5"
 
 # ── Date command ─────────────────────────────────────────────
 # macOS: gdate via coreutils; Linux: GNU date natively
@@ -1211,7 +1211,10 @@ on_cert_result() {
     # Note: chain_icon (✓/⚠) is a multi-byte UTF-8 character. bash printf
     # pads %-*s by bytes, not display columns, so unicode symbols end up
     # under-padded. We print the symbol directly and add explicit spaces.
-    printf "%s %-*s %s %-*s %s %b%s%-*s%b %s %-*s %s %b%s%b  %s\n" \
+    # Chain cell width = COL5+2 = 5 display cols: 1 leading space + 1 symbol + 3 trailing spaces.
+    # Three trailing spaces are needed (not two) because printf %b%s%b prints the symbol
+    # directly without any padding — the surrounding spaces are the only padding.
+    printf "%s %-*s %s %-*s %s %b%s%-*s%b %s %-*s %s %b%s%b   %s\n" \
         "$ROW_L" $COL1 "$hostname" \
         "$ROW_M" $COL2 "$short_date" \
         "$ROW_M" "${color}" "$icon " $((COL3-2)) "$text" "${NC}" \
