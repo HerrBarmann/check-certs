@@ -230,9 +230,9 @@ check-certs <hostname>:<port>            # Check a single server on a specific p
 check-certs <hostname>:<port>:<proto>    # Check with explicit STARTTLS protocol
 check-certs --scan <hostname>            # Probe common TLS ports (onboarding helper)
 check-certs --list                       # List all servers without running checks
-check-certs --check <host>:<port>        # key=value output for scripting
-check-certs --check --nagios <host>:<port>  # Nagios/Icinga plugin output
-check-certs --check --json <host>:<port>    # JSON output
+check-certs --check <host>[:<port>]       # key=value output for scripting (port defaults to 443)
+check-certs --check --nagios <host>[:<port>]  # Nagios/Icinga plugin output
+check-certs --check --json <host>[:<port>]    # JSON output
 check-certs --clear-state                # Clear all state (forces fresh notifications)
 check-certs --version                    # Show version
 check-certs --help                       # Show help
@@ -244,12 +244,14 @@ check-certs --help                       # Show help
 
 `check-certs --check` performs a structured check on one server and prints
 machine-readable output — useful for scripting, monitoring integrations, and
-testing STARTTLS configuration. IPv6 addresses use bracket notation: `[::1]:443`.
+testing STARTTLS configuration. The port is optional and defaults to 443.
+IPv6 addresses use bracket notation: `[::1]:443`.
 
 **Output modes:**
 
 ```bash
-check-certs --check mail.example.com:587          # key=value (default)
+check-certs --check mail.example.com              # key=value, port defaults to 443
+check-certs --check mail.example.com:587          # key=value with explicit port
 check-certs --check --nagios mail.example.com:587  # Nagios/Icinga plugin format
 check-certs --check --json mail.example.com:587    # JSON
 ```
