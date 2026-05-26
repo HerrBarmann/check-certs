@@ -2,7 +2,7 @@
 
 # ============================================================
 #  check-certs.sh – SSL certificate checker
-#  Version 2.5.3
+#  Version 2.5.4
 #
 #  STANDALONE USAGE (terminal table, macOS + Linux):
 #    check-certs [hostname[:port[:proto]]]          Terminal table (IPv6: [addr]:port[:proto])
@@ -53,7 +53,7 @@
 # ============================================================
 
 # ── Version ──────────────────────────────────────────────────
-VERSION="2.5.3"
+VERSION="2.5.4"
 
 # ── Date command ─────────────────────────────────────────────
 # macOS: gdate via coreutils; Linux: GNU date natively
@@ -1208,12 +1208,15 @@ on_cert_result() {
         chain_icon="⚠"; chain_color="$YELLOW"
     fi
 
-    printf "%s %-*s %s %-*s %s %b%s%-*s%b %s %-*s %s %b%-*s%b %s\n" \
+    # Note: chain_icon (✓/⚠) is a multi-byte UTF-8 character. bash printf
+    # pads %-*s by bytes, not display columns, so unicode symbols end up
+    # under-padded. We print the symbol directly and add explicit spaces.
+    printf "%s %-*s %s %-*s %s %b%s%-*s%b %s %-*s %s %b%s%b  %s\n" \
         "$ROW_L" $COL1 "$hostname" \
         "$ROW_M" $COL2 "$short_date" \
         "$ROW_M" "${color}" "$icon " $((COL3-2)) "$text" "${NC}" \
         "$ROW_M" $COL4 "$ca_name" \
-        "$ROW_M" "${chain_color}" $COL5 "$chain_icon" "${NC}" \
+        "$ROW_M" "${chain_color}" "$chain_icon" "${NC}" \
         "$ROW_R"
 }
 
