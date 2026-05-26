@@ -4,6 +4,14 @@ All notable changes to check-certs are documented here.
 
 ---
 
+## 2.5.2 — 2026-05-26
+
+### Bug fix
+
+**`--check` now accepts a bare hostname without a port.** Previously `check-certs --check hostname` failed with "invalid hostspec". The port is now optional and defaults to 443, consistent with the terminal single-host mode. Invalid specs that contain colons but don't match any valid form still produce a clear error.
+
+---
+
 ## 2.5.1 — 2026-05-26
 
 ### Bug fixes

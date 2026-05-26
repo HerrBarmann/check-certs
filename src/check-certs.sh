@@ -2,7 +2,7 @@
 
 # ============================================================
 #  check-certs.sh – SSL certificate checker
-#  Version 2.5.1
+#  Version 2.5.2
 #
 #  STANDALONE USAGE (terminal table, macOS + Linux):
 #    check-certs [hostname[:port[:proto]]]          Terminal table (IPv6: [addr]:port[:proto])
@@ -53,7 +53,7 @@
 # ============================================================
 
 # ── Version ──────────────────────────────────────────────────
-VERSION="2.5.1"
+VERSION="2.5.2"
 
 # ── Date command ─────────────────────────────────────────────
 # macOS: gdate via coreutils; Linux: GNU date natively
@@ -757,7 +757,7 @@ if [[ "$1" == "--help" || "$1" == "-h" ]]; then
     printf "  ${CYAN}check-certs${NC}                              Check all servers from servers.conf\n"
     printf "  ${CYAN}check-certs${NC} <host>[:<port>[:<proto>]]   Check a single server (terminal table)\n"
     printf "  ${CYAN}check-certs --check${NC} <host>[:<port>[:<proto>]]\n"
-    printf "                                           key=value output, exit code = severity\n"
+    printf "                                           key=value output (port defaults to 443)\n"
     printf "  ${CYAN}check-certs --check --nagios${NC} <host>[:<port>[:<proto>]]\n"
     printf "                                           Nagios/Icinga plugin output (OK/WARNING/CRITICAL/UNKNOWN)\n"
     printf "  ${CYAN}check-certs --check --json${NC}   <host>[:<port>[:<proto>]]\n"
@@ -1002,15 +1002,25 @@ if [[ "$1" == "--check" ]]; then
         exit 1
     fi
 
-    # Parse hostspec — supports IPv6 bracket notation [addr]:port[:proto]
+    # Parse hostspec — supports IPv6 bracket notation [addr]:port[:proto].
+    # Port is optional: a bare hostname defaults to port 443.
     _ch_host="" _ch_port="" _ch_proto=""
     if ! parse_hostspec "$_ch_arg" _ch_host _ch_port _ch_proto; then
-        printf 'Error: invalid hostspec "%s"\n' "$_ch_arg" >&2
-        printf 'Usage: check-certs --check [--nagios|--json] <host>:<port>[:<proto>]\n' >&2
-        printf 'Examples:\n' >&2
-        printf '  check-certs --check mail.example.com:443\n' >&2
-        printf '  check-certs --check [2001:db8::1]:636:ldaps\n' >&2
-        exit 1
+        # No port given — treat the whole argument as a hostname and
+        # default to port 443, matching terminal single-host behaviour.
+        if [[ "$_ch_arg" =~ ^[^:[:space:]]+$ ]]; then
+            _ch_host="$_ch_arg"
+            _ch_port="443"
+            _ch_proto=""
+        else
+            printf 'Error: invalid hostspec "%s"\n' "$_ch_arg" >&2
+            printf 'Usage: check-certs --check [--nagios|--json] <host>[:<port>[:<proto>]]\n' >&2
+            printf 'Examples:\n' >&2
+            printf '  check-certs --check mail.example.com\n' >&2
+            printf '  check-certs --check mail.example.com:587\n' >&2
+            printf '  check-certs --check [2001:db8::1]:636:ldaps\n' >&2
+            exit 1
+        fi
     fi
 
     _ch_tmp=$(mktemp) || { echo "Error: mktemp failed" >&2; exit 2; }

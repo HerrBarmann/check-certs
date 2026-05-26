@@ -229,9 +229,9 @@ check-certs <hostname>:<port>               # Einzelnen Server auf einem bestimm
 check-certs <hostname>:<port>:<proto>       # Mit explizitem STARTTLS-Protokoll prüfen
 check-certs --scan <hostname>               # Häufige TLS-Ports scannen (Onboarding-Hilfe)
 check-certs --list                          # Alle Server auflisten ohne zu prüfen
-check-certs --check <host>:<port>           # key=value-Ausgabe für Skripte
-check-certs --check --nagios <host>:<port>  # Nagios/Icinga-Plugin-Ausgabe
-check-certs --check --json <host>:<port>    # JSON-Ausgabe
+check-certs --check <host>[:<port>]          # key=value-Ausgabe für Skripte (Port-Standard: 443)
+check-certs --check --nagios <host>[:<port>]  # Nagios/Icinga-Plugin-Ausgabe
+check-certs --check --json <host>[:<port>]    # JSON-Ausgabe
 check-certs --clear-state                   # Statusdateien zurücksetzen (erzwingt neue Benachrichtigungen)
 check-certs --version                       # Version anzeigen
 check-certs --help                          # Hilfe anzeigen
@@ -241,12 +241,13 @@ check-certs --help                          # Hilfe anzeigen
 
 ## Einzelserver-Prüfung
 
-`check-certs --check` führt eine strukturierte Prüfung eines einzelnen Servers durch und gibt maschinenlesbare Ausgabe zurück – nützlich für Skripte, Monitoring-Integrationen und das Testen von STARTTLS-Konfigurationen. IPv6-Adressen verwenden Klammernotation: `[::1]:443`.
+`check-certs --check` führt eine strukturierte Prüfung eines einzelnen Servers durch und gibt maschinenlesbare Ausgabe zurück – nützlich für Skripte, Monitoring-Integrationen und das Testen von STARTTLS-Konfigurationen. Der Port ist optional und hat 443 als Standard. IPv6-Adressen verwenden Klammernotation: `[::1]:443`.
 
 **Ausgabemodi:**
 
 ```bash
-check-certs --check mail.example.com:587          # key=value (Standard)
+check-certs --check mail.example.com              # key=value, Port-Standard: 443
+check-certs --check mail.example.com:587          # key=value mit explizitem Port
 check-certs --check --nagios mail.example.com:587  # Nagios/Icinga-Plugin-Format
 check-certs --check --json mail.example.com:587    # JSON
 ```

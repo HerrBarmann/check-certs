@@ -388,6 +388,15 @@ rm -f /tmp/_nagios_out
 section "--check kv exit codes"
 # ════════════════════════════════════════════════════════════
 
+# bare hostname defaults to port 443
+if bare_out=$("$SCRIPT" --check example.com 2>/dev/null); then
+    grep -q "^port=443$" <<< "$bare_out" \
+        && ok "--check bare hostname: defaults to port 443" \
+        || fail "--check bare hostname: port not 443 in output"
+else
+    skip "--check bare hostname (no network)"
+fi
+
 # kv output: expiry_ts must be present and be a bare integer
 if kv_out=$("$SCRIPT" --check example.com:443 2>/dev/null); then
     grep -q "^expiry_ts=" <<< "$kv_out" \
