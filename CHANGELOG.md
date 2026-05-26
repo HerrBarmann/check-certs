@@ -4,6 +4,14 @@ All notable changes to check-certs are documented here.
 
 ---
 
+## 2.5.4 — 2026-05-26
+
+### Bug fix
+
+**Chain column now aligns correctly.** `bash printf` pads `%-*s` by bytes, not display columns. The `✓` and `⚠` symbols are 3 bytes each in UTF-8 but occupy only 1 display column, so `%-3s` produced no padding and the cell came out 2 chars short. The chain symbol is now printed directly followed by two explicit spaces, giving the correct 3-column width regardless of byte length.
+
+---
+
 ## 2.5.3 — 2026-05-26
 
 ### Change
