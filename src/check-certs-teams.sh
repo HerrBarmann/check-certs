@@ -33,7 +33,8 @@ CORE="$(dirname "$0")/check-certs.sh"
 source "$CORE"
 configure_wrapper
 
-# ── State file ───────────────────────────────────────────────
+# ── State directory default for this variant ─────────────────
+# Each variant uses its own directory; one file per monitored host.
 if [ -z "${STATE_FILE:-}" ]; then
     if [[ "$(uname)" == "Darwin" ]]; then
         STATE_FILE="$HOME/Library/Application Support/check-certs/state-teams"
@@ -78,6 +79,10 @@ _row_count=0
 _has_findings=false
 
 # ── Delivery hooks ────────────────────────────────────────────
+# The Teams variant collects all results in arrays (via on_cert_result
+# below) and sends a single card at the end. deliver_finding and
+# deliver_reminder only set the _has_findings flag so the card is
+# suppressed when nothing actionable happened.
 deliver_finding() {
     _has_findings=true
 }

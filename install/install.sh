@@ -15,6 +15,7 @@
 #    check-certs-webhook.sh  – HTTP POST webhook
 #    check-certs-teams.sh    – Microsoft Teams Adaptive Card
 #    check-certs-pushover.sh – Pushover mobile push
+#    check-certs-ntfy.sh     – ntfy push notifications (ntfy.sh or self-hosted)
 #
 #  Usage:
 #    macOS:  ./install.sh
@@ -55,9 +56,11 @@ if [ "$PLATFORM" = "macos" ]; then
     NOTIFY_PLIST_NAME="com.check-certs.notify.plist"
     WEBHOOK_PLIST_NAME="com.check-certs.webhook.plist"
     PUSHOVER_PLIST_NAME="com.check-certs.pushover.plist"
+    NTFY_PLIST_NAME="com.check-certs.ntfy.plist"
     NOTIFY_PLIST_TARGET="$HOME/Library/LaunchAgents/$NOTIFY_PLIST_NAME"
     WEBHOOK_PLIST_TARGET="$HOME/Library/LaunchAgents/$WEBHOOK_PLIST_NAME"
     PUSHOVER_PLIST_TARGET="$HOME/Library/LaunchAgents/$PUSHOVER_PLIST_NAME"
+    NTFY_PLIST_TARGET="$HOME/Library/LaunchAgents/$NTFY_PLIST_NAME"
     FQDN="$(hostname -f 2>/dev/null || hostname)"
 else
     TARGET_DIR="/opt/check-certs"
@@ -247,18 +250,20 @@ echo -e "  Select one or more automation variants to install.\n"
 if [ "$PLATFORM" = "macos" ]; then
     echo -e "  ${BOLD}1)${NC} Notifications  – daily macOS notifications via launchd"
     echo -e "  ${BOLD}2)${NC} Email          – daily email, choose transport in the next step"
-    echo -e "  ${BOLD}3)${NC} Webhook        – HTTP POST to Slack, ntfy, Teams, custom endpoints"
+    echo -e "  ${BOLD}3)${NC} Webhook        – HTTP POST to Slack, custom endpoints, etc."
     echo -e "  ${BOLD}4)${NC} Teams          – Adaptive Card to a Microsoft Teams channel"
     echo -e "  ${BOLD}5)${NC} Pushover       – mobile push notifications with priority levels"
-    echo -e "  ${BOLD}6)${NC} Terminal only  – skip automation for now"
+    echo -e "  ${BOLD}6)${NC} ntfy           – push notifications via ntfy.sh or self-hosted ntfy"
+    echo -e "  ${BOLD}7)${NC} Terminal only  – skip automation for now"
     echo ""
     echo -e "  Enter one or more numbers separated by spaces (e.g. ${BOLD}1 4${NC}):"
 else
     echo -e "  ${BOLD}1)${NC} Email    – daily cron job, choose transport in the next step"
-    echo -e "  ${BOLD}2)${NC} Webhook  – HTTP POST to Slack, ntfy, custom endpoints"
+    echo -e "  ${BOLD}2)${NC} Webhook  – HTTP POST to Slack, custom endpoints, etc."
     echo -e "  ${BOLD}3)${NC} Teams    – Adaptive Card to a Microsoft Teams channel"
     echo -e "  ${BOLD}4)${NC} Pushover – mobile push notifications with priority levels"
-    echo -e "  ${BOLD}5)${NC} Terminal only – skip automation for now"
+    echo -e "  ${BOLD}5)${NC} ntfy     – push notifications via ntfy.sh or self-hosted ntfy"
+    echo -e "  ${BOLD}6)${NC} Terminal only – skip automation for now"
     echo ""
     echo -e "  Enter one or more numbers separated by spaces (e.g. ${BOLD}1 3${NC}):"
 fi
@@ -268,17 +273,19 @@ echo ""
 
 INSTALL_NOTIFY=false; INSTALL_MAIL=false; MAIL_TRANSPORT=""
 INSTALL_WEBHOOK=false; INSTALL_TEAMS=false; INSTALL_PUSHOVER=false
+INSTALL_NTFY=false
 INSTALL_NONE=false
 
 if [ "$PLATFORM" = "macos" ]; then
     for choice in $VARIANT_INPUT; do
         case "$choice" in
-            1) INSTALL_NOTIFY=true  ;;
-            2) INSTALL_MAIL=true    ;;
-            3) INSTALL_WEBHOOK=true ;;
-            4) INSTALL_TEAMS=true   ;;
+            1) INSTALL_NOTIFY=true   ;;
+            2) INSTALL_MAIL=true     ;;
+            3) INSTALL_WEBHOOK=true  ;;
+            4) INSTALL_TEAMS=true    ;;
             5) INSTALL_PUSHOVER=true ;;
-            *) INSTALL_NONE=true    ;;
+            6) INSTALL_NTFY=true     ;;
+            *) INSTALL_NONE=true     ;;
         esac
     done
 else
@@ -288,6 +295,7 @@ else
             2) INSTALL_WEBHOOK=true  ;;
             3) INSTALL_TEAMS=true    ;;
             4) INSTALL_PUSHOVER=true ;;
+            5) INSTALL_NTFY=true     ;;
             *) INSTALL_NONE=true     ;;
         esac
     done
@@ -295,7 +303,7 @@ fi
 
 if [ "$INSTALL_NOTIFY" = false ] && [ "$INSTALL_MAIL" = false ] && \
    [ "$INSTALL_WEBHOOK" = false ] && [ "$INSTALL_TEAMS" = false ] && \
-   [ "$INSTALL_PUSHOVER" = false ]; then
+   [ "$INSTALL_PUSHOVER" = false ] && [ "$INSTALL_NTFY" = false ]; then
     INSTALL_NONE=true
 fi
 
@@ -311,6 +319,8 @@ echo ""
 [ "$INSTALL_TEAMS"    = true ] && require_file "$SRC_DIR"     "check-certs-teams.sh"
 [ "$INSTALL_PUSHOVER" = true ] && require_file "$SRC_DIR"     "check-certs-pushover.sh" \
                                 && { [ "$PLATFORM" = "macos" ] && require_file "$INSTALL_DIR" "$PUSHOVER_PLIST_NAME" || true; }
+[ "$INSTALL_NTFY"     = true ] && require_file "$SRC_DIR"     "check-certs-ntfy.sh" \
+                                && { [ "$PLATFORM" = "macos" ] && require_file "$INSTALL_DIR" "$NTFY_PLIST_NAME" || true; }
 
 # ── Configuration prompts ─────────────────────────────────────
 
@@ -417,6 +427,34 @@ if [ "$INSTALL_PUSHOVER" = true ]; then
     echo ""; echo "──────────────────────────────"; echo ""
 fi
 
+# ntfy
+if [ "$INSTALL_NTFY" = true ]; then
+    echo -e "  ${BOLD}ntfy variant${NC}"
+    echo ""
+    echo -e "  ntfy server URL. Use https://ntfy.sh for the free hosted service,"
+    echo -e "  or your own server (e.g. https://ntfy.example.com)."
+    echo ""
+    read -r -p "  ntfy server URL [https://ntfy.sh]: " NTFY_URL
+    NTFY_URL="${NTFY_URL:-https://ntfy.sh}"
+    # Strip trailing slash so we never produce double slashes
+    NTFY_URL="${NTFY_URL%/}"
+    read -r -p "  Topic name: " NTFY_TOPIC
+    while [ -z "$NTFY_TOPIC" ]; do
+        echo -e "  ${RED}Please enter a topic name.${NC}"
+        read -r -p "  Topic name: " NTFY_TOPIC
+    done
+    echo ""
+    echo -e "  Authentication (leave both blank for public topics):"
+    read -r -p "  Access token (or leave blank): " NTFY_TOKEN
+    if [ -z "$NTFY_TOKEN" ]; then
+        read -r -p "  Username (or leave blank): " NTFY_USER
+        [ -n "$NTFY_USER" ] && { read -r -s -p "  Password: " NTFY_PASS; echo ""; }
+    fi
+    _prompt_schedule "ntfy run time"
+    NTFY_HOUR="$_HOUR"; NTFY_MINUTE="$_MINUTE"
+    echo ""; echo "──────────────────────────────"; echo ""
+fi
+
 # ── Install packages (Linux) ──────────────────────────────────
 if [ "$PLATFORM" = "linux" ]; then
     echo "  Updating package lists..."
@@ -451,7 +489,7 @@ if [ "$PLATFORM" = "linux" ]; then
     fi
 
     if [ "$INSTALL_WEBHOOK" = true ] || [ "$INSTALL_TEAMS" = true ] || \
-       [ "$INSTALL_PUSHOVER" = true ]; then
+       [ "$INSTALL_PUSHOVER" = true ] || [ "$INSTALL_NTFY" = true ]; then
         echo "  Installing curl..."
         apt-get install -y -qq curl
         echo -e "${GREEN}✓ curl installed${NC}"
@@ -639,16 +677,30 @@ if [ "$INSTALL_NONE" = false ]; then
             echo "PUSHOVER_USER_KEY=\"${PUSHOVER_USER_KEY}\""
             [ -n "$PUSHOVER_DEVICE" ] && echo "PUSHOVER_DEVICE=\"${PUSHOVER_DEVICE}\""
         fi
+
+        if [ "$INSTALL_NTFY" = true ]; then
+            echo ""
+            echo "# ── ntfy settings ───────────────────────────────────────"
+            echo "NTFY_URL=\"${NTFY_URL}\""
+            echo "NTFY_TOPIC=\"${NTFY_TOPIC}\""
+            [ -n "$NTFY_TOKEN" ] && echo "NTFY_TOKEN=\"${NTFY_TOKEN}\""
+            [ -n "$NTFY_USER"  ] && echo "NTFY_USER=\"${NTFY_USER}\""
+            [ -n "$NTFY_PASS"  ] && echo "NTFY_PASS=\"${NTFY_PASS}\""
+        fi
     } > "$TARGET_DIR/check-certs.conf"
     echo -e "${GREEN}✓ check-certs.conf written${NC}"
 fi
 
-# ── Touch state files ─────────────────────────────────────────
-[ "$INSTALL_NOTIFY"   = true ] && touch "$STATE_DIR/state-notify"
-[ "$INSTALL_MAIL"     = true ] && touch "$STATE_DIR/state-mail"
-[ "$INSTALL_WEBHOOK"  = true ] && touch "$STATE_DIR/state-webhook"
-[ "$INSTALL_TEAMS"    = true ] && touch "$STATE_DIR/state-teams"
-[ "$INSTALL_PUSHOVER" = true ] && touch "$STATE_DIR/state-pushover"
+# ── Create state directories ──────────────────────────────────
+# Each automation variant stores per-host state files in its own
+# subdirectory of STATE_DIR. Creating these here means the first run
+# never needs to create them itself.
+[ "$INSTALL_NOTIFY"   = true ] && mkdir -p "$STATE_DIR/state-notify"
+[ "$INSTALL_MAIL"     = true ] && mkdir -p "$STATE_DIR/state-mail"
+[ "$INSTALL_WEBHOOK"  = true ] && mkdir -p "$STATE_DIR/state-webhook"
+[ "$INSTALL_TEAMS"    = true ] && mkdir -p "$STATE_DIR/state-teams"
+[ "$INSTALL_PUSHOVER" = true ] && mkdir -p "$STATE_DIR/state-pushover"
+[ "$INSTALL_NTFY"     = true ] && mkdir -p "$STATE_DIR/state-ntfy"
 
 # ── Install variants ──────────────────────────────────────────
 
@@ -766,6 +818,39 @@ if [ "$INSTALL_PUSHOVER" = true ]; then
     fi
 fi
 
+# ntfy
+if [ "$INSTALL_NTFY" = true ]; then
+    echo ""; echo -e "  ${BOLD}ntfy variant${NC}"
+    copy_script "check-certs-ntfy.sh"
+
+    if [ "$PLATFORM" = "macos" ]; then
+        _install_plist "$INSTALL_DIR/$NTFY_PLIST_NAME" "$NTFY_PLIST_TARGET" \
+            "$TARGET_DIR/check-certs-ntfy.sh" "com.check-certs.ntfy" \
+            "$NTFY_HOUR" "$NTFY_MINUTE"
+    else
+        _add_cron "check-certs-ntfy.sh" "$NTFY_HOUR" "$NTFY_MINUTE"
+    fi
+
+    echo ""
+    read -r -p "  Send a test notification to topic '$NTFY_TOPIC'? [Y/n] " send_test
+    if [[ ! "$send_test" =~ ^[nN]$ ]]; then
+        _ntfy_auth_args=()
+        [ -n "$NTFY_TOKEN" ] && _ntfy_auth_args+=(-H "Authorization: Bearer $NTFY_TOKEN")
+        [ -z "$NTFY_TOKEN" ] && [ -n "$NTFY_USER" ] && _ntfy_auth_args+=(-u "$NTFY_USER:$NTFY_PASS")
+        _code=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST \
+            "${_ntfy_auth_args[@]}" \
+            -H "Title: check-certs: installation test" \
+            -H "Priority: 2" \
+            -H "Tags: white_check_mark" \
+            -d "check-certs was successfully installed on $(hostname)." \
+            "$NTFY_URL/$NTFY_TOPIC" 2>/dev/null) || true
+        [[ "$_code" =~ ^2 ]] \
+            && echo -e "${GREEN}✓ Test notification sent (HTTP ${_code})${NC}" \
+            || echo -e "${YELLOW}⚠ HTTP ${_code:-no response}. Check NTFY_URL and NTFY_TOPIC.${NC}"
+    fi
+fi
+
 # ── Summary ───────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}${BOLD}✅ Installation complete!${NC}"
@@ -786,6 +871,8 @@ echo -e "  Server list:   ${BOLD}$TARGET_DIR/servers.conf${NC}"
     echo -e "  Teams:         daily at ${TEAMS_HOUR}:$(printf '%02d' "$TEAMS_MINUTE")"
 [ "$INSTALL_PUSHOVER" = true ] && \
     echo -e "  Pushover:      daily at ${PUSHOVER_HOUR}:$(printf '%02d' "$PUSHOVER_MINUTE")"
+[ "$INSTALL_NTFY"     = true ] && \
+    echo -e "  ntfy:          daily at ${NTFY_HOUR}:$(printf '%02d' "$NTFY_MINUTE")  (${NTFY_URL}/${NTFY_TOPIC})"
 echo ""
 
 if [ -n "$ALIAS_RC_FILE" ]; then

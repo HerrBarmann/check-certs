@@ -34,7 +34,8 @@ source "$CORE"
 # configure_wrapper loads check-certs.conf and applies defaults
 configure_wrapper
 
-# ── State file default for this variant ──────────────────────
+# ── State directory default for this variant ─────────────────
+# Each variant uses its own directory; one file per monitored host.
 if [ -z "${STATE_FILE:-}" ]; then
     if [[ "$(uname)" == "Darwin" ]]; then
         STATE_FILE="$HOME/Library/Application Support/check-certs/state-pushover"
@@ -98,7 +99,8 @@ log_cert() {
 }
 
 # ── Pushover API ──────────────────────────────────────────────
-# Send a Pushover notification.
+# Send a single Pushover notification. Retries once with a 5-second
+# delay on network failure.
 # $1 = title, $2 = message, $3 = priority (-1..2), $4 = url (optional)
 _push() {
     local title="$1" message="$2" priority="${3:-0}" url="${4:-}"

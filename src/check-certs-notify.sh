@@ -3,9 +3,8 @@
 # ============================================================
 #  check-certs-notify.sh – macOS notification wrapper
 #  Runs daily via launchd. Sends native macOS notifications
-#  grouped by severity. Clicking a notification opens a new
-#  Terminal window and runs check-certs so you can see the
-#  full certificate table immediately.
+#  grouped by severity. Clicking a notification opens the
+#  full certificate table in a new Terminal window.
 #
 #  Requirements: openssl, coreutils, terminal-notifier
 #    brew install coreutils terminal-notifier
@@ -15,14 +14,17 @@
 CORE="$(dirname "$0")/check-certs.sh"
 [ -f "$CORE" ] || { echo "Error: check-certs.sh not found (expected: $CORE)" >&2; exit 1; }
 
+# ── Load check-certs.sh (functions + escalation logic) ───────
 # shellcheck source=check-certs.sh
 source "$CORE"
 
+# configure_wrapper loads check-certs.conf and applies defaults
 configure_wrapper
 
-# ── Variant-specific defaults ────────────────────────────────
+# ── Variant-specific defaults (applied after config file) ────
 : "${LOG_FILE:=$HOME/Library/Logs/check-certs/check-certs-notify.log}"
-# Each variant has its own state file so multiple variants can run side by side.
+# Each variant has its own state directory so multiple variants can run side by side.
+# The directory holds one small file per monitored host.
 : "${STATE_FILE:=$HOME/Library/Application Support/check-certs/state-notify}"
 
 # Initialise the state file and create the log directory if needed.
@@ -45,34 +47,31 @@ log_cert() {
     fi | tee -a "$LOG_FILE"
 }
 
-# ── Notifications ─────────────────────────────────────────────
+# ── Notifications ────────────────────────────────────────────
 _send_notification() {
     local title="$1" message="$2" sound="${3:-}"
+    local check_script
+    check_script="$(dirname "$0")/check-certs.sh"
 
-    if command -v terminal-notifier &>/dev/null; then
-        # Clicking the notification opens Terminal and runs check-certs via
-        # an interactive shell so the alias is available.
+    if command -v terminal-notifier &>/dev/null && [ -f "$check_script" ]; then
         local execute_cmd
-        # Use the user's default shell so aliases in .zshrc/.bashrc are available
-        local user_shell
-        user_shell=$(dscl . -read /Users/"$USER" UserShell 2>/dev/null | awk '{print $2}')
-        user_shell="${user_shell:-/bin/zsh}"
-        execute_cmd=$(cat << EOSC
-osascript \\
-    -e 'tell application "Terminal"' \\
-    -e 'set newTab to do script "${user_shell} -i -c check-certs"' \\
-    -e 'set bounds of front window to {100, 100, 1000, 780}' \\
-    -e 'activate' \\
-    -e 'end tell'
-EOSC
+        execute_cmd=$(cat <<APPLESCRIPT
+osascript <<'EOF'
+tell application "Terminal"
+    set newTab to do script "\"${check_script}\""
+    set bounds of front window to {100, 100, 1000, 780}
+    activate
+end tell
+EOF
+APPLESCRIPT
 )
         local args=(-title "$title" -message "$message" -execute "$execute_cmd")
         [ -n "$sound" ] && args+=(-sound "$sound")
         terminal-notifier "${args[@]}"
     else
         local safe_title safe_message
-        safe_title="${title//\"/\\\"}"
-        safe_message="${message//\"/\\\"}"
+        safe_title="${title//"/\\"}"
+        safe_message="${message//"/\\"}"
         if [ -n "$sound" ]; then
             osascript -e "display notification \"${safe_message}\" with title \"${safe_title}\" sound name \"${sound}\""
         else
@@ -81,7 +80,6 @@ EOSC
     fi
 }
 
-# ── Message helpers ───────────────────────────────────────────
 # Pick the most severe entry to show first in a bundled message
 _build_message() {
     local lines="$1" count="$2" first rest
@@ -176,8 +174,8 @@ on_cert_result() {
     fi
 }
 
-# Wrap on_cert_error to always log every unreachable host, even when the
-# error is already known and no notification is due yet.
+# Log every ERROR on every run, including hosts that are known-unreachable
+# and within the 23-hour reminder window (which escalation handles silently).
 on_cert_error() {
     local hostname="$1" reason="$3"
     log_cert "$hostname" "-" "ERROR" "(${reason})"
@@ -196,7 +194,8 @@ log "Started – checking ${server_count} servers"
 
 run_server_loop "$SERVER_FILE"
 
-# ── Send notifications ────────────────────────────────────────
+# ── Send notifications ───────────────────────────────────────
+# Count entries by counting newlines in each bucket
 _count_lines() { local s="$1"; [ -z "$s" ] && echo 0 || printf '%s' "$s" | wc -l | tr -d ' '; }
 renewed_count=$(_count_lines "$notify_renewed")
 urgent_count=$(_count_lines "$notify_urgent")
