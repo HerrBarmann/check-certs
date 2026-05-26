@@ -4,6 +4,14 @@ All notable changes to check-certs are documented here.
 
 ---
 
+## 2.5.5 — 2026-05-26
+
+### Bug fix
+
+**Chain column alignment corrected.** The chain cell needed `COL5+2=5` display columns (1 leading space + 1 symbol + 3 trailing spaces) but was only 4 wide (2 trailing spaces). Rows containing `✓` or `⚠` were one character short of the right border.
+
+---
+
 ## 2.5.4 — 2026-05-26
 
 ### Bug fix
