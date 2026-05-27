@@ -33,7 +33,7 @@ No more surprise expirations. No more embarrassing phone calls. Just certificate
 
 check-certs consists of `check-certs.sh` and the automation variants built on top of it.
 
-**`check-certs.sh`** is the main script – a colour-coded terminal table that works on both macOS and Linux. It also contains the shared core logic that all automation variants build on. Both installers always include it.
+**`check-certs.sh`** is the main script – a colour-coded terminal table that works on both macOS and Linux. It also contains the shared core logic that all automation variants build on. The installer always includes it.
 
 Six optional automation variants extend it with background monitoring:
 
@@ -232,9 +232,11 @@ check-certs --scan <hostname>            # Probe common TLS ports (onboarding he
 check-certs --list                       # List all servers without running checks
 check-certs --check                          # key=value for all servers in servers.conf
 check-certs --check <host>[:<port>]          # key=value for a single host (port defaults to 443)
-check-certs --check --nagios <host>[:<port>]  # Nagios/Icinga plugin output (single host only)
+check-certs --check <host1> <host2> …        # key=value batch mode (multiple hosts, parallel)
+check-certs --check --nagios <host>[:<port>] … # Nagios/Icinga output, one line per host
 check-certs --check --json                   # JSON array for all servers
 check-certs --check --json <host>[:<port>]    # JSON object for a single host
+check-certs --check --json <host1> <host2> … # JSON array for multiple hosts
 check-certs --clear-state                # Clear all state (forces fresh notifications)
 check-certs --version                    # Show version
 check-certs --help                       # Show help
@@ -246,18 +248,21 @@ check-certs --help                       # Show help
 
 `check-certs --check` outputs machine-readable certificate data — useful for
 scripting, monitoring integrations, and testing STARTTLS configuration.
-Without a hostspec it checks every server in `servers.conf`. With a hostspec
-it checks that one server (port defaults to 443). IPv6: `[::1]:443`.
+Without arguments it checks every server in `servers.conf`. With a single
+hostspec it checks that one server (port defaults to 443). With multiple
+hostspecs it runs them in parallel (batch mode). IPv6: `[::1]:443`.
 
 **Output modes:**
 
 ```bash
-check-certs --check                               # kv for all servers in servers.conf
-check-certs --check --json                        # JSON array for all servers
-check-certs --check mail.example.com              # kv, single host, port defaults to 443
-check-certs --check mail.example.com:587          # kv, explicit port
-check-certs --check --nagios mail.example.com:587  # Nagios/Icinga (single host only)
-check-certs --check --json mail.example.com:587    # JSON object
+check-certs --check                                       # kv for all servers in servers.conf
+check-certs --check --json                                # JSON array for all servers
+check-certs --check mail.example.com                      # kv, single host, port defaults to 443
+check-certs --check mail.example.com:587                  # kv, explicit port
+check-certs --check api.example.com ldap.example.com:636  # batch mode, two hosts in parallel
+check-certs --check --nagios mail.example.com:587         # Nagios/Icinga output
+check-certs --check --json mail.example.com:587           # JSON object
+check-certs --check --json api.example.com ldap.example.com:636  # JSON array
 ```
 
 **key=value output** — one field per line, parse by key name not position:
@@ -373,6 +378,7 @@ Once you have `check-certs.sh` set up, you can add automated background monitori
 README.md
 README-DE.md
 CHANGELOG.md
+CONTRIBUTING.md
 LICENSE
 
 docs/

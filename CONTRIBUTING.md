@@ -119,6 +119,9 @@ Note: the table rendering helpers and terminal hooks are defined at library leve
 - Config loading and terminal-specific defaults
 - `--version`, `--help`, `--list`, `--clear-state`, `--scan`
 - `--check` command block (including `_ch_print_record` and `_ch_exit_code` helpers)
+  - no args → checks all servers in `SERVER_FILE`
+  - one arg → single-host mode
+  - multiple args → batch mode (hosts checked in parallel, one record per host)
 - The terminal table run (at the very end of the guard)
 
 ---
@@ -566,7 +569,7 @@ For the full changelog see `CHANGELOG.md`. Key architectural changes by version:
 | 2.5.0 | State engine rewritten: `STATE_FILE` is now a directory; per-host files; `state_migrate` for automatic upgrade; `parse_hostspec` centralises host parsing; IPv6 bracket notation support throughout; `--check --nagios`, `--check --json`, `--check` bare hostname default to 443; ntfy variant added; `--scan` discovery mode |
 | 2.5.1–2.5.5 | Bug fixes: worker SNI for IP addresses, state_migrate printf, `--nagios` chain error message, table helper function placement, `_json_escape` at library level, `CA_MAX_LEN` documentation, chain exit code handling |
 | 2.5.6 | Chain column (Ch) added to terminal table; unicode padding fix for `✓`/`⚠`/`✗` in `printf`; `declare -A` removed (Bash 3.2 compatibility restored); `--nagios` CRITICAL distinguishes chain errors from expiry |
-| 2.6.0 | `--check` without a hostspec checks all servers in `servers.conf` in parallel; JSON array output; shared `_ch_print_record` and `_ch_exit_code` helpers extracted |
+| 2.6.0 | `--check` without a hostspec checks all of `servers.conf` in parallel; batch mode (`--check host1 host2 …`) checks multiple hosts in parallel with the same output modes; `--nagios` works for all three modes; `_ch_print_record` and `_ch_exit_code` helpers extracted |
 
 ---
 

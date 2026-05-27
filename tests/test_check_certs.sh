@@ -562,11 +562,11 @@ else
     [ "$ec" -le 2 ]         && ok "--check no-host json: exited with valid code $ec"         || fail "--check no-host json: unexpected exit code $ec"
 fi
 
-# --nagios without hostspec must exit 1 with a clear error
-"$SCRIPT" --check --nagios > /dev/null 2>/tmp/_nagios_err
-chk_eq "--check --nagios no host: exit 1" "$?" "1"
-grep -qi "nagios\|single\|hostspec" /tmp/_nagios_err     && ok "--check --nagios no host: error message helpful"     || fail "--check --nagios no host: error message missing"
-rm -f /tmp/_nagios_err
+
+
+
+
+
 
 # Missing SERVER_FILE should exit 1 with a clear error
 out=$( SERVER_FILE="$_SL_TMP/nonexistent.conf" "$SCRIPT" --check 2>&1 ) && ec=0 || ec=$?
@@ -574,6 +574,69 @@ chk_eq "--check no-host missing SERVER_FILE: exit 1" "$ec" "1"
 echo "$out" | grep -qi "not found\|server file"     && ok "--check no-host missing SERVER_FILE: error message present"     || fail "--check no-host missing SERVER_FILE: error message missing"
 
 rm -rf "$_SL_TMP"
+
+# ════════════════════════════════════════════════════════════
+section "--check batch mode (multiple hostspecs as arguments)"
+# ════════════════════════════════════════════════════════════
+
+SCRIPT="$(dirname "$0")/../src/check-certs.sh"
+
+# Batch kv: two hosts → two records separated by blank line
+if batch_kv=$("$SCRIPT" --check example.com:443 example.com:443 2>/dev/null); then
+    ec=$?
+    # Should contain two host= fields
+    host_count=$(grep -c "^host=" <<< "$batch_kv")
+    chk_eq "--check batch kv: two host fields" "$host_count" "2"
+    # Records separated by blank line
+    grep -q "^$" <<< "$batch_kv"         && ok "--check batch kv: blank line between records"         || fail "--check batch kv: no blank line separator"
+    # Exit code: worst of both (both OK or WARNING)
+    [ "$ec" -le 2 ] && ok "--check batch kv: valid exit code $ec"                     || fail "--check batch kv: unexpected exit $ec"
+else
+    ec=$?
+    [ "$ec" -le 2 ] && ok "--check batch kv: completed with code $ec"                      || fail "--check batch kv: unexpected exit $ec"
+fi
+
+# Batch json: two hosts → JSON array
+if batch_json=$("$SCRIPT" --check --json example.com:443 example.com:443 2>/dev/null); then
+    [[ "$batch_json" =~ ^\[ ]]         && ok "--check batch json: output is array (starts with [)"         || fail "--check batch json: output does not start with ["
+    if command -v python3 &>/dev/null; then
+        echo "$batch_json" | python3 -m json.tool > /dev/null 2>&1             && ok "--check batch json: valid JSON"             || fail "--check batch json: invalid JSON"
+    else
+        skip "--check batch json validation (python3 not available)"
+    fi
+    # Should have two objects
+    obj_count=$(grep -c '"host"' <<< "$batch_json")
+    chk_eq "--check batch json: two host objects" "$obj_count" "2"
+else
+    skip "--check batch json (no network)"
+fi
+
+# Batch nagios: two hosts → two lines, worst exit code
+if batch_nag=$("$SCRIPT" --check --nagios example.com:443 example.com:443 2>/dev/null); then
+    line_count=$(printf '%s
+' "$batch_nag" | grep -c "^.\|^$" | tr -d ' ')
+    # Should produce exactly two non-empty lines
+    nz_lines=$(printf '%s
+' "$batch_nag" | grep -c "^\(OK\|WARNING\|CRITICAL\|UNKNOWN\)")
+    chk_eq "--check batch nagios: two output lines" "$nz_lines" "2"
+else
+    skip "--check batch nagios (no network or cert issue)"
+fi
+
+# Unreachable host in batch → exit 2, UNKNOWN line in nagios output
+batch_nag2=$("$SCRIPT" --check --nagios example.com:443 127.0.0.1:19999 2>/dev/null); ec2=$?
+chk_eq "--check batch nagios with unreachable: exit 2" "$ec2" "2"
+grep -q "^UNKNOWN" <<< "$batch_nag2"     && ok "--check batch nagios: UNKNOWN line present"     || fail "--check batch nagios: UNKNOWN line missing"
+
+# Single host still works (not accidentally treated as batch)
+if sh_out=$("$SCRIPT" --check example.com 2>/dev/null); then
+    grep -q "^host=" <<< "$sh_out"         && ok "--check single still works after batch impl"         || fail "--check single: host field missing"
+    # Must NOT be a JSON array
+    [[ "$sh_out" =~ ^\[ ]]         && fail "--check single: got array output for single host"         || ok "--check single: not array output"
+else
+    skip "--check single host (no network)"
+fi
+
 # ════════════════════════════════════════════════════════════
 printf '\n══  Summary\n'
 printf '  Passed: %d   Failed: %d   Skipped: %d\n' "$PASS" "$FAIL" "$SKIP"

@@ -33,7 +33,7 @@ Keine unerwarteten Ablaufdaten mehr. Keine peinlichen Anrufe mehr. Einfach Zerti
 
 check-certs besteht aus `check-certs.sh` und den darauf aufbauenden Automatisierungsvarianten.
 
-**`check-certs.sh`** ist das Hauptskript – eine farbig kodierte Terminal-Tabelle, die auf macOS und Linux läuft. Es enthält außerdem die gemeinsame Kernlogik, auf der alle Automatisierungsvarianten aufbauen. Beide Installer schließen es immer ein.
+**`check-certs.sh`** ist das Hauptskript – eine farbig kodierte Terminal-Tabelle, die auf macOS und Linux läuft. Es enthält außerdem die gemeinsame Kernlogik, auf der alle Automatisierungsvarianten aufbauen. Der Installer schließt es immer ein.
 
 Sechs optionale Automatisierungsvarianten ergänzen es um Hintergrundüberwachung:
 
@@ -231,9 +231,11 @@ check-certs --scan <hostname>               # Häufige TLS-Ports scannen (Onboar
 check-certs --list                          # Alle Server auflisten ohne zu prüfen
 check-certs --check                          # key=value für alle Server aus servers.conf
 check-certs --check <host>[:<port>]          # key=value für einen einzelnen Host (Port-Standard: 443)
-check-certs --check --nagios <host>[:<port>]  # Nagios/Icinga-Plugin-Ausgabe (nur einzelner Host)
+check-certs --check <host1> <host2> …        # key=value Batch-Modus (mehrere Hosts parallel)
+check-certs --check --nagios <host>[:<port>] … # Nagios/Icinga-Ausgabe, eine Zeile pro Host
 check-certs --check --json                   # JSON-Array für alle Server
 check-certs --check --json <host>[:<port>]    # JSON-Objekt für einen einzelnen Host
+check-certs --check --json <host1> <host2> … # JSON-Array für mehrere Hosts
 check-certs --clear-state                   # Statusdateien zurücksetzen (erzwingt neue Benachrichtigungen)
 check-certs --version                       # Version anzeigen
 check-certs --help                          # Hilfe anzeigen
@@ -243,17 +245,19 @@ check-certs --help                          # Hilfe anzeigen
 
 ## Einzelserver-Prüfung
 
-`check-certs --check` gibt maschinenlesbare Ausgabe zurück – nützlich für Skripte, Monitoring-Integrationen und das Testen von STARTTLS-Konfigurationen. Ohne Hostname werden alle Server aus `servers.conf` geprüft. Mit einem Hostname wird nur dieser eine Server geprüft (Port-Standard: 443). IPv6-Adressen verwenden Klammernotation: `[::1]:443`.
+`check-certs --check` gibt maschinenlesbare Ausgabe zurück – nützlich für Skripte, Monitoring-Integrationen und das Testen von STARTTLS-Konfigurationen. Ohne Argumente werden alle Server aus `servers.conf` geprüft. Mit einem einzelnen Host wird nur dieser geprüft (Port-Standard: 443). Mehrere Hosts werden parallel geprüft (Batch-Modus). IPv6-Adressen verwenden Klammernotation: `[::1]:443`.
 
 **Ausgabemodi:**
 
 ```bash
-check-certs --check                               # kv für alle Server aus servers.conf
-check-certs --check --json                        # JSON-Array für alle Server
-check-certs --check mail.example.com              # kv, einzelner Host, Port-Standard: 443
-check-certs --check mail.example.com:587          # kv, expliziter Port
-check-certs --check --nagios mail.example.com:587  # Nagios/Icinga (nur einzelner Host)
-check-certs --check --json mail.example.com:587    # JSON-Objekt
+check-certs --check                                       # kv für alle Server aus servers.conf
+check-certs --check --json                                # JSON-Array für alle Server
+check-certs --check mail.example.com                      # kv, einzelner Host, Port-Standard: 443
+check-certs --check mail.example.com:587                  # kv, expliziter Port
+check-certs --check api.example.com ldap.example.com:636  # Batch-Modus, zwei Hosts parallel
+check-certs --check --nagios mail.example.com:587         # Nagios/Icinga-Ausgabe
+check-certs --check --json mail.example.com:587           # JSON-Objekt
+check-certs --check --json api.example.com ldap.example.com:636  # JSON-Array
 ```
 
 **key=value-Ausgabe** – ein Feld pro Zeile, nach Schlüsselname parsen, nicht nach Position:
@@ -369,6 +373,7 @@ Sobald `check-certs.sh` läuft, lässt sich die automatische Hintergrundüberwac
 README.md
 README-DE.md
 CHANGELOG.md
+CONTRIBUTING.md
 LICENSE
 
 docs/
