@@ -4,6 +4,36 @@ All notable changes to check-certs are documented here.
 
 ---
 
+## 2.6.0 — 2026-05-27
+
+### New feature
+
+**`--check` without a hostspec checks all servers in `servers.conf`.**
+
+`check-certs --check` and `check-certs --check --json` now accept an optional hostspec. When no host is given, every server in `servers.conf` is checked in parallel (respecting `MAX_JOBS` and per-host threshold overrides) and the results are emitted in the original file order:
+
+```bash
+check-certs --check           # key=value blocks, one per host, separated by blank lines
+check-certs --check --json    # JSON array, one object per host
+```
+
+Single-host behaviour is unchanged:
+
+```bash
+check-certs --check mail.example.com:587
+check-certs --check --json api.example.com
+```
+
+`--nagios` remains single-host only — Nagios plugins check exactly one service. Passing `--nagios` without a hostspec exits 1 with a clear error.
+
+**Exit codes for server-list mode:** `0` if all hosts OK, `1` if at least one WARNING (none worse), `2` if any CRITICAL, URGENT, EXPIRED, or ERROR.
+
+**JSON output format:** a top-level JSON array (`[{...}, {...}]`), valid JSON parseable directly by `jq` and any JSON library without extra flags.
+
+**Implementation notes:** the parallel worker pool and per-host override parsing from `run_server_loop` are replicated directly in the `--check` server-list path so it respects `warn=`, `crit=`, `urgent=`, and `timeout=` overrides from `servers.conf`. The shared `_ch_print_record` helper is extracted from the old single-host code so both paths use identical output formatting.
+
+---
+
 ## 2.5.6 — 2026-05-26
 
 ### Changes
