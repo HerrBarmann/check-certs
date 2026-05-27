@@ -1135,23 +1135,19 @@ if [[ "$1" == "--check" ]]; then
     trap 'rm -f "$_ch_tmp"' EXIT
     _check_cert_worker "$_ch_host" "$_ch_port" "$_ch_tmp" "$_ch_proto"
 
-    # Read all worker output fields in one pass into an associative array.
-    # This replaces 8 individual _worker_field calls (each a subshell fork)
-    # with a single while-read loop over the temp file.
-    declare -A _ch_fields
-    while IFS='=' read -r _k _v; do
-        [[ -n "$_k" ]] && _ch_fields["$_k"]="$_v"
-    done < "$_ch_tmp"
-
-    _ch_type=${_ch_fields[TYPE]:-}
-    _ch_status=${_ch_fields[STATUS]:-}
-    _ch_days=${_ch_fields[DAYS]:-}
-    _ch_expiry=${_ch_fields[EXPIRY]:-}
-    _ch_expiry_ts=${_ch_fields[EXPIRY_TS]:-}
-    _ch_ca=${_ch_fields[CA]:-}
-    _ch_chain=${_ch_fields[CHAIN]:-}
-    _ch_reason=${_ch_fields[REASON]:-}
-    _ch_proto_out="${_ch_fields[PROTO]:-tls}"
+    # Read all worker output fields using _worker_field (grep on the temp file).
+    # Each call is a subshell fork, but correctness trumps micro-optimisation here:
+    # declare -A (associative arrays) requires Bash 4+, and macOS ships Bash 3.2.
+    _ch_type=$(_worker_field "$_ch_tmp" TYPE)
+    _ch_status=$(_worker_field "$_ch_tmp" STATUS)
+    _ch_days=$(_worker_field "$_ch_tmp" DAYS)
+    _ch_expiry=$(_worker_field "$_ch_tmp" EXPIRY)
+    _ch_expiry_ts=$(_worker_field "$_ch_tmp" EXPIRY_TS)
+    _ch_ca=$(_worker_field "$_ch_tmp" CA)
+    _ch_chain=$(_worker_field "$_ch_tmp" CHAIN)
+    _ch_reason=$(_worker_field "$_ch_tmp" REASON)
+    _ch_proto_out=$(_worker_field "$_ch_tmp" PROTO)
+    _ch_proto_out="${_ch_proto_out:-tls}"
 
     # ── key=value output (default) ──────────────────────────
     if [ "$_ch_mode" = "kv" ]; then
