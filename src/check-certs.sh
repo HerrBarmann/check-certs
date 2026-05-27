@@ -2,7 +2,7 @@
 
 # ============================================================
 #  check-certs.sh – SSL certificate checker
-#  Version 2.5.6
+#  Version 2.6.0
 #
 #  STANDALONE USAGE (terminal table, macOS + Linux):
 #    check-certs [hostname[:port[:proto]]]          Terminal table (IPv6: [addr]:port[:proto])
@@ -53,7 +53,7 @@
 # ============================================================
 
 # ── Version ──────────────────────────────────────────────────
-VERSION="2.5.6"
+VERSION="2.6.0"
 
 # ── Date command ─────────────────────────────────────────────
 # macOS: gdate via coreutils; Linux: GNU date natively
@@ -864,12 +864,12 @@ if [[ "$1" == "--help" || "$1" == "-h" ]]; then
     printf "${BOLD}Usage:${NC}\n"
     printf "  ${CYAN}check-certs${NC}                              Check all servers from servers.conf\n"
     printf "  ${CYAN}check-certs${NC} <host>[:<port>[:<proto>]]   Check a single server (terminal table)\n"
-    printf "  ${CYAN}check-certs --check${NC} <host>[:<port>[:<proto>]]\n"
-    printf "                                           key=value output (port defaults to 443)\n"
+    printf "  ${CYAN}check-certs --check${NC} [<host>[:<port>[:<proto>]]]\n"
+    printf "                                           key=value output; no host = check all servers.conf entries\n"
     printf "  ${CYAN}check-certs --check --nagios${NC} <host>[:<port>[:<proto>]]\n"
-    printf "                                           Nagios/Icinga plugin output (OK/WARNING/CRITICAL/UNKNOWN)\n"
-    printf "  ${CYAN}check-certs --check --json${NC}   <host>[:<port>[:<proto>]]\n"
-    printf "                                           JSON output (one object to stdout)\n"
+    printf "                                           Nagios/Icinga plugin output (single host only)\n"
+    printf "  ${CYAN}check-certs --check --json${NC} [<host>[:<port>[:<proto>]]]\n"
+    printf "                                           JSON object (single host) or JSON array (all hosts)\n"
     printf "  ${CYAN}check-certs --scan${NC} <hostname>             Probe common TLS ports, print servers.conf snippet\n"
     printf "  ${CYAN}check-certs --list${NC}                       List all servers from servers.conf\n"
     printf "  ${CYAN}check-certs --clear-state${NC}                Remove all host state files (forces fresh notifications)\n"
@@ -1093,9 +1093,155 @@ fi
 # URGENT and EXPIRED map to CRITICAL (exit 2) because they are more
 # severe than WARNING — mapping them to UNKNOWN would suppress paging
 # in most monitoring setups.
+# ── _ch_print_record: format one worker output file ─────────
+# Shared by the single-host and server-list paths. Reads the temp
+# file written by _check_cert_worker and prints one record in the
+# chosen mode. Does NOT exit — callers handle exit codes themselves.
+_ch_print_record() {
+    local tmpfile="$1" mode="$2"
+
+    local type status days expiry expiry_ts ca chain reason proto_out
+    type=$(_worker_field "$tmpfile" TYPE)
+    status=$(_worker_field "$tmpfile" STATUS)
+    days=$(_worker_field "$tmpfile" DAYS)
+    expiry=$(_worker_field "$tmpfile" EXPIRY)
+    expiry_ts=$(_worker_field "$tmpfile" EXPIRY_TS)
+    ca=$(_worker_field "$tmpfile" CA)
+    chain=$(_worker_field "$tmpfile" CHAIN)
+    reason=$(_worker_field "$tmpfile" REASON)
+    proto_out=$(_worker_field "$tmpfile" PROTO)
+    proto_out="${proto_out:-tls}"
+
+    # Host and port come from the worker file so callers do not need
+    # to pass them separately — useful in the server-list loop.
+    local host port
+    host=$(_worker_field "$tmpfile" HOST)
+    port=$(_worker_field "$tmpfile" PORT)
+
+    # ── key=value ──────────────────────────────────────────
+    if [ "$mode" = "kv" ]; then
+        while IFS= read -r _line; do
+            local _key="${_line%%=*}" _val="${_line#*=}"
+            [ "$_key" = "TYPE" ] && continue
+            [ "$_key" = "PROTO" ] && _val="${_val:-tls}"
+            printf '%s=%s
+' "$(printf '%s' "$_key" | tr 'A-Z' 'a-z')" "$_val"
+        done < "$tmpfile"
+        return
+    fi
+
+    # ── Nagios ─────────────────────────────────────────────
+    if [ "$mode" = "nagios" ]; then
+        if [ "$type" = "ERROR" ]; then
+            printf 'UNKNOWN - %s:%s: %s
+' "$host" "$port" "${reason:-unreachable}"
+            return
+        fi
+        case "$status" in
+            OK)
+                printf 'OK - %s:%s: certificate valid for %s days (expires %s, CA: %s)
+'                     "$host" "$port" "$days" "$expiry" "$ca" ;;
+            WARNING)
+                printf 'WARNING - %s:%s: certificate expires in %s days (%s)
+'                     "$host" "$port" "$days" "$expiry" ;;
+            CRITICAL)
+                if [ -n "$chain" ] && [ "$chain" != "OK" ]; then
+                    printf 'CRITICAL - %s:%s: chain verification failed: %s (%s days remaining)
+'                         "$host" "$port" "$chain" "$days"
+                else
+                    printf 'CRITICAL - %s:%s: certificate expires in %s days (%s)
+'                         "$host" "$port" "$days" "$expiry"
+                fi ;;
+            URGENT)
+                printf 'CRITICAL - %s:%s: certificate expires in %s days — urgent (%s)
+'                     "$host" "$port" "$days" "$expiry" ;;
+            EXPIRED)
+                printf 'CRITICAL - %s:%s: certificate EXPIRED %s days ago (%s)
+'                     "$host" "$port" "${days#-}" "$expiry" ;;
+            *)
+                printf 'UNKNOWN - %s:%s: unexpected status %s
+' "$host" "$port" "$status" ;;
+        esac
+        return
+    fi
+
+    # ── JSON ───────────────────────────────────────────────
+    # Emits one JSON object (no surrounding array — callers handle that
+    # for the server-list mode). Numeric fields are unquoted integers.
+    if [ "$mode" = "json" ]; then
+        if [ "$type" = "ERROR" ]; then
+            printf '{
+'
+            printf '  "host": "%s",
+'   "$(_json_escape "$host")"
+            printf '  "port": %s,
+'     "$port"
+            printf '  "proto": "%s",
+'  "$(_json_escape "$proto_out")"
+            printf '  "status": "ERROR",
+'
+            printf '  "reason": "%s"
+'  "$(_json_escape "${reason:-unreachable}")"
+            printf '}'
+        else
+            printf '{
+'
+            printf '  "host": "%s",
+'         "$(_json_escape "$host")"
+            printf '  "port": %s,
+'           "$port"
+            printf '  "proto": "%s",
+'        "$(_json_escape "$proto_out")"
+            printf '  "status": "%s",
+'       "$(_json_escape "$status")"
+            printf '  "days": %s,
+'           "$days"
+            printf '  "expiry": "%s",
+'       "$(_json_escape "$expiry")"
+            printf '  "expiry_ts": %s,
+'      "$expiry_ts"
+            printf '  "ca": "%s",
+'           "$(_json_escape "$ca")"
+            printf '  "chain_status": "%s"
+'  "$(_json_escape "$chain")"
+            printf '}'
+        fi
+    fi
+}
+
+# ── _ch_exit_code: map a STATUS string to an exit code ───────
+# Used by both the single-host and server-list paths.
+_ch_exit_code() {
+    case "$1" in
+        OK)                        echo 0 ;;
+        WARNING)                   echo 1 ;;
+        CRITICAL|URGENT|EXPIRED)   echo 2 ;;
+        ERROR)                     echo 2 ;;
+        *)                         echo 2 ;;
+    esac
+}
+
+# ── Structured single-server check ───────────────────────────
+# --check [--nagios|--json] [<host>[:<port>[:<proto>]]]
+#
+# With a hostspec: check that one server.
+# Without a hostspec: check every server in servers.conf and emit
+#   one record per host in the chosen format.
+#
+# Output modes:
+#   (default)  key=value, one block per host separated by blank lines
+#   --nagios   Nagios plugin format, one line per host (multi-host only)
+#              Note: --nagios is not valid for server-list mode — Nagios
+#              plugins must check exactly one service. Use kv or json instead.
+#   --json     JSON array of objects (multi-host) or single object (one host)
+#
+# Exit codes (all modes):
+#   0  all OK
+#   1  at least one WARNING (none CRITICAL/URGENT/EXPIRED/ERROR)
+#   2  at least one CRITICAL, URGENT, EXPIRED, or ERROR
+#   (--nagios single-host also uses exit 3 for UNKNOWN/unreachable)
 if [[ "$1" == "--check" ]]; then
-    _ch_mode="kv"           # default: key=value
-    _ch_arg=""
+    _ch_mode="kv"
     shift                   # consume "--check"
 
     # Optional mode flag
@@ -1105,150 +1251,189 @@ if [[ "$1" == "--check" ]]; then
     esac
 
     _ch_arg="${1:-}"
+
+    # ── Server-list mode (no hostspec given) ─────────────────
     if [ -z "$_ch_arg" ]; then
-        printf 'Usage: check-certs --check [--nagios|--json] <host>[:<port>[:<proto>]]\n' >&2
-        exit 1
+        if [ "$_ch_mode" = "nagios" ]; then
+            printf 'Error: --nagios requires a single hostspec.
+' >&2
+            printf 'Nagios plugins check exactly one service at a time.
+' >&2
+            printf 'Usage: check-certs --check --nagios <host>[:<port>[:<proto>]]
+' >&2
+            exit 1
+        fi
+
+        if [ ! -f "$SERVER_FILE" ]; then
+            printf 'Error: server file not found: %s
+' "$SERVER_FILE" >&2
+            exit 1
+        fi
+
+        # Run every host through the parallel worker pool.
+        # _ch_sl_tmpdir holds one worker output file per host (named by index).
+        # _ch_sl_order mirrors run_server_loop's order array so we can replay
+        # results in servers.conf order.
+        _ch_sl_tmpdir=$(mktemp -d) || { printf 'Error: mktemp failed
+' >&2; exit 2; }
+        trap 'rm -rf "$_ch_sl_tmpdir"' EXIT
+
+        # Collect host entries in servers.conf order, then check in parallel.
+        _ch_sl_hosts=()   # hostspecs in order
+        _ch_sl_pids=()    # background worker pids
+        _ch_sl_running=0
+        _ch_sl_idx=0
+
+        while IFS= read -r _sl_line || [ -n "$_sl_line" ]; do
+            # Strip comments and blank lines
+            _sl_line="${_sl_line%%#*}"
+            _sl_line="${_sl_line#"${_sl_line%%[! $'	']*}"}"
+            _sl_line="${_sl_line%"${_sl_line##*[! $'	']}"}"
+            [ -z "$_sl_line" ] && continue
+            # Skip group headers
+            [[ "$_sl_line" =~ ^\[.*\]$ ]] && continue
+
+            # Parse host:port[:proto] and optional overrides
+            _sl_hostpart="${_sl_line%% *}"
+            _sl_overrides="${_sl_line#"$_sl_hostpart"}"
+
+            _sl_h="" _sl_p="" _sl_pr=""
+            if ! parse_hostspec "$_sl_hostpart" _sl_h _sl_p _sl_pr; then
+                continue   # skip malformed entries silently
+            fi
+
+            # Parse per-host threshold overrides
+            _sl_ow="" _sl_oc="" _sl_ou="" _sl_ot=""
+            for _sl_kv in $_sl_overrides; do
+                case "$_sl_kv" in
+                    warn=*)    _sl_ow="${_sl_kv#*=}" ;;
+                    crit=*)    _sl_oc="${_sl_kv#*=}" ;;
+                    urgent=*)  _sl_ou="${_sl_kv#*=}" ;;
+                    timeout=*) _sl_ot="${_sl_kv#*=}" ;;
+                esac
+            done
+
+            _ch_sl_hosts+=("$_sl_hostpart")
+
+            # Semaphore: wait for a slot before launching
+            if [ "$_ch_sl_running" -ge "${MAX_JOBS:-10}" ]; then
+                if wait -n 2>/dev/null; then :
+                else wait "${_ch_sl_pids[$(( _ch_sl_idx - _ch_sl_running ))]}" 2>/dev/null || true
+                fi
+                _ch_sl_running=$(( _ch_sl_running - 1 ))
+            fi
+
+            _check_cert_worker "$_sl_h" "$_sl_p"                 "$_ch_sl_tmpdir/$_ch_sl_idx" "$_sl_pr"                 "${_sl_ow:-$WARN_DAYS}" "${_sl_oc:-$CRIT_DAYS}"                 "${_sl_ou:-$URGENT_DAYS}" "${_sl_ot:-$TIMEOUT}" &
+            _ch_sl_pids+=($!)
+            _ch_sl_running=$(( _ch_sl_running + 1 ))
+            _ch_sl_idx=$(( _ch_sl_idx + 1 ))
+        done < "$SERVER_FILE"
+
+        # Wait for all remaining workers
+        for _sl_pid in "${_ch_sl_pids[@]}"; do
+            wait "$_sl_pid" 2>/dev/null || true
+        done
+
+        # Replay results in original order, building output
+        _ch_sl_worst=0   # track worst exit code across all hosts
+
+        if [ "$_ch_mode" = "json" ]; then
+            printf '[
+'
+        fi
+
+        _ch_sl_count=${#_ch_sl_hosts[@]}
+        for (( _ch_sl_i=0; _ch_sl_i<_ch_sl_count; _ch_sl_i++ )); do
+            _sl_out="$_ch_sl_tmpdir/$_ch_sl_i"
+            [ -f "$_sl_out" ] || continue
+
+            _sl_status=$(_worker_field "$_sl_out" STATUS)
+            [ "$(_worker_field "$_sl_out" TYPE)" = "ERROR" ] && _sl_status="ERROR"
+            _sl_ec=$(_ch_exit_code "$_sl_status")
+            [ "$_sl_ec" -gt "$_ch_sl_worst" ] && _ch_sl_worst=$_sl_ec
+
+            if [ "$_ch_mode" = "kv" ]; then
+                # Print a blank line before each record except the first
+                [ "$_ch_sl_i" -gt 0 ] && printf '\n'
+                _ch_print_record "$_sl_out" "kv"
+            elif [ "$_ch_mode" = "json" ]; then
+                # Capture the object, indent every line by 2 spaces,
+                # then add a comma after the closing } for all but the last.
+                _sl_obj=$(_ch_print_record "$_sl_out" "json")
+                _sl_obj_indented=$(printf '%s\n' "$_sl_obj" | sed 's/^/  /')
+                if [ "$(( _ch_sl_i + 1 ))" -lt "$_ch_sl_count" ]; then
+                    printf '%s,\n' "$_sl_obj_indented"
+                else
+                    printf '%s\n' "$_sl_obj_indented"
+                fi
+            fi
+        done
+
+        if [ "$_ch_mode" = "json" ]; then
+            printf ']
+'
+        fi
+
+        rm -rf "$_ch_sl_tmpdir"
+        trap - EXIT
+        exit "$_ch_sl_worst"
     fi
 
+    # ── Single-host mode ─────────────────────────────────────
     # Parse hostspec — supports IPv6 bracket notation [addr]:port[:proto].
     # Port is optional: a bare hostname defaults to port 443.
     _ch_host="" _ch_port="" _ch_proto=""
     if ! parse_hostspec "$_ch_arg" _ch_host _ch_port _ch_proto; then
-        # No port given — treat the whole argument as a hostname and
-        # default to port 443, matching terminal single-host behaviour.
+        # No port — treat as bare hostname, default to 443.
         if [[ "$_ch_arg" =~ ^[^:[:space:]]+$ ]]; then
             _ch_host="$_ch_arg"
             _ch_port="443"
             _ch_proto=""
         else
-            printf 'Error: invalid hostspec "%s"\n' "$_ch_arg" >&2
-            printf 'Usage: check-certs --check [--nagios|--json] <host>[:<port>[:<proto>]]\n' >&2
-            printf 'Examples:\n' >&2
-            printf '  check-certs --check mail.example.com\n' >&2
-            printf '  check-certs --check mail.example.com:587\n' >&2
-            printf '  check-certs --check [2001:db8::1]:636:ldaps\n' >&2
+            printf 'Error: invalid hostspec "%s"
+' "$_ch_arg" >&2
+            printf 'Usage: check-certs --check [--nagios|--json] <host>[:<port>[:<proto>]]
+' >&2
+            printf 'Examples:
+' >&2
+            printf '  check-certs --check mail.example.com
+' >&2
+            printf '  check-certs --check mail.example.com:587
+' >&2
+            printf '  check-certs --check [2001:db8::1]:636:ldaps
+' >&2
             exit 1
         fi
     fi
 
-    _ch_tmp=$(mktemp) || { echo "Error: mktemp failed" >&2; exit 2; }
+    _ch_tmp=$(mktemp) || { printf 'Error: mktemp failed
+' >&2; exit 2; }
     trap 'rm -f "$_ch_tmp"' EXIT
     _check_cert_worker "$_ch_host" "$_ch_port" "$_ch_tmp" "$_ch_proto"
 
-    # Read all worker output fields using _worker_field (grep on the temp file).
-    # Each call is a subshell fork, but correctness trumps micro-optimisation here:
-    # declare -A (associative arrays) requires Bash 4+, and macOS ships Bash 3.2.
-    _ch_type=$(_worker_field "$_ch_tmp" TYPE)
-    _ch_status=$(_worker_field "$_ch_tmp" STATUS)
-    _ch_days=$(_worker_field "$_ch_tmp" DAYS)
-    _ch_expiry=$(_worker_field "$_ch_tmp" EXPIRY)
-    _ch_expiry_ts=$(_worker_field "$_ch_tmp" EXPIRY_TS)
-    _ch_ca=$(_worker_field "$_ch_tmp" CA)
-    _ch_chain=$(_worker_field "$_ch_tmp" CHAIN)
-    _ch_reason=$(_worker_field "$_ch_tmp" REASON)
-    _ch_proto_out=$(_worker_field "$_ch_tmp" PROTO)
-    _ch_proto_out="${_ch_proto_out:-tls}"
+    _ch_print_record "$_ch_tmp" "$_ch_mode"
 
-    # ── key=value output (default) ──────────────────────────
-    if [ "$_ch_mode" = "kv" ]; then
-        # Print all worker fields in lowercase, skipping TYPE=.
-        # Fields include: host, port, proto, days, expiry (human-readable),
-        # expiry_ts (Unix timestamp), ca, status, chain.
-        # Use cut -d= -f2- to preserve = signs in values (e.g. CA names).
-        while IFS= read -r _line; do
-            _key="${_line%%=*}"
-            _val="${_line#*=}"
-            [ "$_key" = "TYPE" ] && continue
-            [ "$_key" = "PROTO" ] && _val="${_val:-tls}"
-            printf '%s=%s\n' "$(printf '%s' "$_key" | tr 'A-Z' 'a-z')" "$_val"
-        done < "$_ch_tmp"
-    fi
+    # Single-host JSON needs a trailing newline (the object body has none)
+    [ "$_ch_mode" = "json" ] && printf '
+'
 
-    # ── Nagios/Icinga-compatible output ─────────────────────
-    # Format: STATUS - hostname:port: <human message>
-    # Nagios exit codes: OK=0 WARNING=1 CRITICAL=2 UNKNOWN=3
+    # For --nagios, exit codes are status-specific (including exit 3 for UNKNOWN).
+    # The shared _ch_print_record already printed the message.
     if [ "$_ch_mode" = "nagios" ]; then
-        if [ "$_ch_type" = "ERROR" ]; then
-            printf 'UNKNOWN - %s:%s: %s\n' "$_ch_host" "$_ch_port" "${_ch_reason:-unreachable}"
-            exit 3
-        fi
+        _ch_type=$(_worker_field "$_ch_tmp" TYPE)
+        _ch_status=$(_worker_field "$_ch_tmp" STATUS)
+        if [ "$_ch_type" = "ERROR" ]; then exit 3; fi
         case "$_ch_status" in
-            OK)
-                printf 'OK - %s:%s: certificate valid for %s days (expires %s, CA: %s)\n' \
-                    "$_ch_host" "$_ch_port" "$_ch_days" "$_ch_expiry" "$_ch_ca"
-                exit 0 ;;
-            WARNING)
-                printf 'WARNING - %s:%s: certificate expires in %s days (%s)\n' \
-                    "$_ch_host" "$_ch_port" "$_ch_days" "$_ch_expiry"
-                exit 1 ;;
-            CRITICAL)
-                # A CRITICAL status may be due to expiry threshold OR a broken
-                # certificate chain (chain-broken leaf is promoted to CRITICAL
-                # by the worker). Distinguish the two in the output message.
-                if [ -n "$_ch_chain" ] && [ "$_ch_chain" != "OK" ]; then
-                    printf 'CRITICAL - %s:%s: chain verification failed: %s (%s days remaining)\n' \
-                        "$_ch_host" "$_ch_port" "$_ch_chain" "$_ch_days"
-                else
-                    printf 'CRITICAL - %s:%s: certificate expires in %s days (%s)\n' \
-                        "$_ch_host" "$_ch_port" "$_ch_days" "$_ch_expiry"
-                fi
-                exit 2 ;;
-            URGENT)
-                printf 'CRITICAL - %s:%s: certificate expires in %s days — urgent (%s)\n' \
-                    "$_ch_host" "$_ch_port" "$_ch_days" "$_ch_expiry"
-                exit 2 ;;
-            EXPIRED)
-                printf 'CRITICAL - %s:%s: certificate EXPIRED %s days ago (%s)\n' \
-                    "$_ch_host" "$_ch_port" "${_ch_days#-}" "$_ch_expiry"
-                exit 2 ;;
-            *)
-                printf 'UNKNOWN - %s:%s: unexpected status %s\n' "$_ch_host" "$_ch_port" "$_ch_status"
-                exit 3 ;;
+            OK)      exit 0 ;;
+            WARNING) exit 1 ;;
+            *)       exit 2 ;;
         esac
     fi
 
-    # ── JSON output ─────────────────────────────────────────
-    # Emits a single JSON object. String values are escaped via
-    # _json_escape (defined at library level). Numeric fields
-    # (days, port, expiry_ts) are unquoted integers. chain_status
-    # lets consumers detect broken intermediate CAs without
-    # inspecting the ca field.
-    if [ "$_ch_mode" = "json" ]; then
-        if [ "$_ch_type" = "ERROR" ]; then
-            printf '{\n'
-            printf '  "host": "%s",\n'   "$(_json_escape "$_ch_host")"
-            printf '  "port": %s,\n'     "$_ch_port"
-            printf '  "proto": "%s",\n'  "$(_json_escape "$_ch_proto_out")"
-            printf '  "status": "ERROR",\n'
-            printf '  "reason": "%s"\n'  "$(_json_escape "${_ch_reason:-unreachable}")"
-            printf '}\n'
-        else
-            printf '{\n'
-            printf '  "host": "%s",\n'         "$(_json_escape "$_ch_host")"
-            printf '  "port": %s,\n'           "$_ch_port"
-            printf '  "proto": "%s",\n'        "$(_json_escape "$_ch_proto_out")"
-            printf '  "status": "%s",\n'       "$(_json_escape "$_ch_status")"
-            printf '  "days": %s,\n'           "$_ch_days"
-            printf '  "expiry": "%s",\n'       "$(_json_escape "$_ch_expiry")"
-            printf '  "expiry_ts": %s,\n'      "$_ch_expiry_ts"
-            printf '  "ca": "%s",\n'           "$(_json_escape "$_ch_ca")"
-            printf '  "chain_status": "%s"\n'  "$(_json_escape "$_ch_chain")"
-            printf '}\n'
-        fi
-    fi
-
-    # ── Exit code ────────────────────────────────────────────
-    # STATUS from the worker already encodes chain errors: a broken
-    # chain with an otherwise-OK leaf is promoted to CRITICAL in the
-    # worker, so exit codes here simply follow STATUS.
-    # (--nagios exits earlier above with its own exit code mapping.)
+    _ch_type=$(_worker_field "$_ch_tmp" TYPE)
+    _ch_status=$(_worker_field "$_ch_tmp" STATUS)
     [ "$_ch_type" = "ERROR" ] && exit 2
-    case "$_ch_status" in
-        OK)                        exit 0 ;;
-        WARNING)                   exit 1 ;;
-        CRITICAL|URGENT|EXPIRED)   exit 2 ;;
-        *)                         exit 2 ;;
-    esac
+    exit "$(_ch_exit_code "$_ch_status")"
 fi
 
 # ── Run ──────────────────────────────────────────────────────

@@ -515,6 +515,65 @@ out=$(NTFY_URL="https://ntfy.sh" NTFY_TOPIC="" bash "$NTFY_SCRIPT" 2>&1) && ec=0
 chk_eq "ntfy: missing NTFY_TOPIC exit 1" "$ec" "1"
 echo "$out" | grep -qi "ntfy_topic"     && ok "ntfy: missing NTFY_TOPIC error message mentions NTFY_TOPIC"     || fail "ntfy: unexpected message: $out"
 
+
+# ════════════════════════════════════════════════════════════
+section "--check server-list mode (no hostspec)"
+# ════════════════════════════════════════════════════════════
+
+SCRIPT="$(dirname "$0")/../src/check-certs.sh"
+_SL_TMP=$(mktemp -d)
+_SL_CONF="$_SL_TMP/servers.conf"
+_SL_CFG="$_SL_TMP/check-certs.conf"
+
+# Write a minimal servers.conf with two reachable public hosts
+printf '[Test]\nexample.com:443\nexample.com:443\n' > "$_SL_CONF"
+# Minimal config pointing at our test servers.conf
+printf 'SERVER_FILE="%s"\n' "$_SL_CONF" > "$_SL_CFG"
+
+# kv mode: should emit two blocks separated by a blank line
+if kv_sl=$(SERVER_FILE="$_SL_CONF" "$SCRIPT" --check 2>/dev/null); then
+    # Should contain host= fields
+    grep -q "^host=" <<< "$kv_sl"         && ok "--check no-host kv: host field present"         || fail "--check no-host kv: host field missing"
+    # Should contain status= field
+    grep -q "^status=" <<< "$kv_sl"         && ok "--check no-host kv: status field present"         || fail "--check no-host kv: status field missing"
+    # kv records separated by blank lines
+    grep -q "^$" <<< "$kv_sl" \
+        && ok "--check no-host kv: blank line separator present" \
+        || fail "--check no-host kv: no blank line separator"
+else
+    ec=$?
+    # Exit 1 or 2 is fine if host has a cert issue; exit 0 also fine
+    [ "$ec" -le 2 ]         && ok "--check no-host kv: exited with valid code $ec"         || fail "--check no-host kv: unexpected exit code $ec"
+fi
+
+# json mode: should emit a JSON array
+if json_sl=$(SERVER_FILE="$_SL_CONF" "$SCRIPT" --check --json 2>/dev/null); then
+    # Must start with [ and end with ]
+    [[ "$json_sl" =~ ^\[ ]]         && ok "--check no-host json: output starts with ["         || fail "--check no-host json: output does not start with ["
+    [[ "$json_sl" =~ \]$ ]]         && ok "--check no-host json: output ends with ]"         || fail "--check no-host json: output does not end with ]"
+    # Must be valid JSON
+    if command -v python3 &>/dev/null; then
+        echo "$json_sl" | python3 -m json.tool > /dev/null 2>&1             && ok "--check no-host json: valid JSON array"             || fail "--check no-host json: invalid JSON"
+    else
+        skip "--check no-host json validation (python3 not available)"
+    fi
+else
+    ec=$?
+    [ "$ec" -le 2 ]         && ok "--check no-host json: exited with valid code $ec"         || fail "--check no-host json: unexpected exit code $ec"
+fi
+
+# --nagios without hostspec must exit 1 with a clear error
+"$SCRIPT" --check --nagios > /dev/null 2>/tmp/_nagios_err
+chk_eq "--check --nagios no host: exit 1" "$?" "1"
+grep -qi "nagios\|single\|hostspec" /tmp/_nagios_err     && ok "--check --nagios no host: error message helpful"     || fail "--check --nagios no host: error message missing"
+rm -f /tmp/_nagios_err
+
+# Missing SERVER_FILE should exit 1 with a clear error
+out=$( SERVER_FILE="$_SL_TMP/nonexistent.conf" "$SCRIPT" --check 2>&1 ) && ec=0 || ec=$?
+chk_eq "--check no-host missing SERVER_FILE: exit 1" "$ec" "1"
+echo "$out" | grep -qi "not found\|server file"     && ok "--check no-host missing SERVER_FILE: error message present"     || fail "--check no-host missing SERVER_FILE: error message missing"
+
+rm -rf "$_SL_TMP"
 # ════════════════════════════════════════════════════════════
 printf '\n══  Summary\n'
 printf '  Passed: %d   Failed: %d   Skipped: %d\n' "$PASS" "$FAIL" "$SKIP"
