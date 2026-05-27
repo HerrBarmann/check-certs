@@ -48,8 +48,8 @@ Every wrapper must follow this sequence:
 1.  source check-certs.sh          Load the library. No side effects.
 2.  configure_wrapper              Load check-certs.conf, apply defaults,
                                    reset counters.
-3.  state_init                     Create the state file and its directory
-                                   if absent. No-op if STATE_FILE is empty.
+3.  `state_init`                     Create the STATE_FILE directory if absent.
+                                   No-op if STATE_FILE is empty.
 4.  define deliver_finding()       Required. Called for new issues.
 5.  define deliver_reminder()      Required. Called for daily reminders.
 6.  define on_group() et al.       Optional. Override event hooks if needed.
@@ -89,7 +89,7 @@ configure_wrapper
 | Variable | Default | Description |
 | -------- | ------- | ----------- |
 | `SERVER_FILE` | `./servers.conf` | Path to the server list – supports per-host overrides (`host:443 warn=30 crit=14`) |
-| `STATE_FILE` | *(variant default)* | Path to the state file. Each built-in variant defaults to its own named file (e.g. `state-mail`). Empty string disables state tracking entirely |
+| `STATE_FILE` | *(variant default)* | Path to the state directory. Each built-in variant defaults to its own named directory (e.g. `state-mail/`). Empty string disables state tracking entirely |
 | `WARN_DAYS` | `15` | Days remaining below which `WARNING` is triggered |
 | `CRIT_DAYS` | `7` | Days remaining below which `CRITICAL` is triggered |
 | `URGENT_DAYS` | `2` | Days remaining below which `URGENT` is triggered. `0` disables the URGENT level |
@@ -119,9 +119,10 @@ zero. Must be the first call after sourcing the library.
 state_init
 ```
 
-Creates `$STATE_FILE` and its parent directory if they do not already exist.
-No-op when `STATE_FILE` is empty (state tracking disabled). Call after
-`configure_wrapper`.
+Creates the `$STATE_FILE` directory if it does not already exist. Also runs
+`state_migrate` to upgrade a 2.4.x flat state file to the per-host directory
+layout if one is detected. No-op when `STATE_FILE` is empty (state tracking
+disabled). Call after `configure_wrapper`.
 
 ---
 
@@ -156,8 +157,9 @@ checks are complete, then returns. Read `$new_issues`, `$reminders`, and
 `$errors` after it returns.
 
 Each entry in the server list may include an optional protocol field:
-`hostname:port` or `hostname:port:proto`. STARTTLS is auto-detected on
-standard ports when no proto is specified.
+`hostname:port` or `hostname:port:proto`. IPv6 addresses use bracket
+notation: `[2001:db8::1]:636:ldaps`. STARTTLS is auto-detected on standard
+ports when no proto is specified.
 
 STARTTLS protocols: `smtp` `submission` `imap` `pop3` `ldap` `ftp` `xmpp`
 
