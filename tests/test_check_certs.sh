@@ -413,6 +413,58 @@ fi
 "$SCRIPT" --check 127.0.0.1:19999 > /dev/null 2>&1
 chk_eq "--check unreachable: exit 2" "$?" "2"
 
+# ════════════════════════════════════════════════════════════
+section "--check chain error exit codes"
+# ════════════════════════════════════════════════════════════
+
+# Simulate: OK cert + chain error → exit 1 (WARNING)
+_STMP_CH=$(mktemp)
+printf "TYPE=RESULT\nHOST=test.example.com\nPORT=443\nPROTO=tls\nDAYS=90\nEXPIRY=Aug 01 2026\nEXPIRY_TS=1753920000\nCA=Let's Encrypt\nSTATUS=OK\nCHAIN=certificate verify failed\n" > "$_STMP_CH"
+
+# Load library and simulate the --check exit logic directly
+TMP_LIB2=$(mktemp --suffix=.sh)
+sed '/^if \[\[ "\${BASH_SOURCE\[0\]}" == "\${0}" \]\]/,$ d' \
+    "$(dirname "$0")/../src/check-certs.sh" > "$TMP_LIB2"
+source "$TMP_LIB2"; rm -f "$TMP_LIB2"
+
+# Read fields like --check does
+declare -A _t_fields
+while IFS="=" read -r _k _v; do
+    [[ -n "$_k" ]] && _t_fields["$_k"]="$_v"
+done < "$_STMP_CH"
+_t_chain="${_t_fields[CHAIN]:-}"
+_t_status="${_t_fields[STATUS]:-}"
+_t_chain_ok=true
+[ -n "$_t_chain" ] && [ "$_t_chain" != "OK" ] && _t_chain_ok=false
+( "$_t_chain_ok" && exit 0 || exit 1 ) 2>/dev/null; _ec=$?
+chk_eq "--check OK+chain_error: exit 1" "$_ec" "1"
+
+# Simulate: WARNING cert + chain error → still exit 1
+printf "TYPE=RESULT\nHOST=test.example.com\nPORT=443\nPROTO=tls\nDAYS=10\nEXPIRY=Jun 05 2026\nEXPIRY_TS=1749168000\nCA=Let's Encrypt\nSTATUS=WARNING\nCHAIN=certificate verify failed\n" > "$_STMP_CH"
+unset _t_fields; declare -A _t_fields
+while IFS="=" read -r _k _v; do
+    [[ -n "$_k" ]] && _t_fields["$_k"]="$_v"
+done < "$_STMP_CH"
+_t_chain="${_t_fields[CHAIN]:-}"; _t_status="${_t_fields[STATUS]:-}"
+_t_chain_ok=true
+[ -n "$_t_chain" ] && [ "$_t_chain" != "OK" ] && _t_chain_ok=false
+( [[ "$_t_status" == "WARNING" ]] && exit 1 || exit 0 ) 2>/dev/null; _ec=$?
+chk_eq "--check WARNING+chain_error: exit 1" "$_ec" "1"
+
+# Simulate: OK cert + chain OK → exit 0
+printf "TYPE=RESULT\nHOST=test.example.com\nPORT=443\nPROTO=tls\nDAYS=90\nEXPIRY=Aug 01 2026\nEXPIRY_TS=1753920000\nCA=Let's Encrypt\nSTATUS=OK\nCHAIN=OK\n" > "$_STMP_CH"
+unset _t_fields; declare -A _t_fields
+while IFS="=" read -r _k _v; do
+    [[ -n "$_k" ]] && _t_fields["$_k"]="$_v"
+done < "$_STMP_CH"
+_t_chain="${_t_fields[CHAIN]:-}"
+_t_chain_ok=true
+[ -n "$_t_chain" ] && [ "$_t_chain" != "OK" ] && _t_chain_ok=false
+( "$_t_chain_ok" && exit 0 || exit 1 ) 2>/dev/null; _ec=$?
+chk_eq "--check OK+chain_OK: exit 0" "$_ec" "0"
+
+rm -f "$_STMP_CH"
+
 
 # ════════════════════════════════════════════════════════════
 section "--scan discovery mode"

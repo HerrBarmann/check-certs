@@ -288,7 +288,7 @@ On `ERROR` (unreachable or invalid port), only `host`, `port`, `proto`, `status`
 
 | Code | Meaning |
 | ---- | ------- |
-| `0` | OK |
+| `0` | OK (certificate valid, chain OK) |
 | `1` | WARNING |
 | `2` | CRITICAL, URGENT, EXPIRED, or ERROR |
 | `3` | UNKNOWN — unreachable host (`--nagios` mode only) |
@@ -345,7 +345,7 @@ Colour-coded table in the terminal, grouped by sections from `servers.conf`:
 | 🔴 Red | < `CRIT_DAYS` remaining | Immediate action required |
 | 🔴 Red / ERROR | – | Server unreachable |
 
-The **"Issued by"** column shows the CN value from the certificate issuer (e.g. `R11` for Let's Encrypt, `GEANT TLS RSA 1` for GÉANT), falling back to the O value if CN is absent. A `⚠chain` suffix indicates a broken certificate chain even if the leaf certificate itself is still valid.
+The **"Issued by"** column shows the CN value from the certificate issuer (e.g. `R11` for Let's Encrypt, `GEANT TLS RSA 1` for GÉANT), falling back to the O value if CN is absent. The **Ch** column shows `✓` when the full certificate chain is valid, or `⚠` when an intermediate CA is missing or invalid. A broken chain promotes an otherwise-OK certificate to CRITICAL — the `chain_status` field in `--check` output carries the reason string.
 
 ---
 

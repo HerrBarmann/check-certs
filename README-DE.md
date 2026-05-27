@@ -284,7 +284,7 @@ Bei `ERROR` (nicht erreichbar oder ungültiger Port) werden nur `host`, `port`, 
 
 | Code | Bedeutung |
 | ---- | --------- |
-| `0` | OK |
+| `0` | OK (Zertifikat gültig, Kette OK) |
 | `1` | WARNING |
 | `2` | CRITICAL, URGENT, EXPIRED oder ERROR |
 | `3` | UNKNOWN – Host nicht erreichbar (nur `--nagios`-Modus) |
@@ -341,7 +341,7 @@ Farbcodierte Tabelle im Terminal, gruppiert nach den Abschnitten aus `servers.co
 | 🔴 Rot | < `CRIT_DAYS` verbleibend | Handlungsbedarf |
 | 🔴 Rot / ERROR | – | Server nicht erreichbar |
 
-Die Spalte **„Ausgestellt von"** zeigt den CN-Wert aus dem Zertifikatsaussteller (z.B. `R11` für Let's Encrypt, `GEANT TLS RSA 1` für GÉANT); fehlt ein CN, wird der O-Wert verwendet. Die Spalte **Ch** zeigt `✓` (Kette OK) oder `⚠` (defekte Kette) – auch wenn das Endzertifikat selbst noch gültig ist.
+Die Spalte **„Ausgestellt von"** zeigt den CN-Wert aus dem Zertifikatsaussteller (z.B. `R11` für Let's Encrypt, `GEANT TLS RSA 1` für GÉANT); fehlt ein CN, wird der O-Wert verwendet. Die Spalte **Ch** zeigt `✓` wenn die vollständige Zertifikatskette gültig ist, oder `⚠` wenn ein Zwischenzertifikat fehlt oder ungültig ist. Eine defekte Kette stuft ein sonst gültiges Zertifikat auf CRITICAL hoch – das Feld `chain_status` in der `--check`-Ausgabe enthält den genauen Fehlertext.
 
 ---
 

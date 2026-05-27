@@ -2,7 +2,7 @@
 
 # ============================================================
 #  check-certs.sh – SSL certificate checker
-#  Version 2.5.5
+#  Version 2.5.6
 #
 #  STANDALONE USAGE (terminal table, macOS + Linux):
 #    check-certs [hostname[:port[:proto]]]          Terminal table (IPv6: [addr]:port[:proto])
@@ -43,7 +43,7 @@
 #  STATUS VALUES passed to deliver_finding / deliver_reminder:
 #    RENEWED  – certificate was non-OK, is now valid again
 #    WARNING  – days_left < WARN_DAYS
-#    CRITICAL – days_left < CRIT_DAYS, or chain broken with leaf OK
+#    CRITICAL – days_left < CRIT_DAYS, or chain broken with otherwise-OK leaf
 #    URGENT   – days_left < URGENT_DAYS
 #    EXPIRED  – days_left < 0
 #    ERROR    – unreachable or invalid port; ca_name carries the reason
@@ -53,7 +53,7 @@
 # ============================================================
 
 # ── Version ──────────────────────────────────────────────────
-VERSION="2.5.5"
+VERSION="2.5.6"
 
 # ── Date command ─────────────────────────────────────────────
 # macOS: gdate via coreutils; Linux: GNU date natively
@@ -439,7 +439,12 @@ _check_cert_worker() {
         status="OK"
     fi
 
-    # Broken chain with otherwise-OK leaf → CRITICAL
+    # A broken chain with an otherwise-OK leaf is promoted to CRITICAL.
+    # STATUS captures the full verdict so every consumer (wrappers,
+    # escalation, --check, table) sees the correct severity without
+    # each having to re-inspect CHAIN= independently.
+    # CHAIN= is still written so consumers that want the reason string
+    # (--check --json, the Ch column) can read it directly.
     [ "$chain_status" != "OK" ] && [ "$status" = "OK" ] && status="CRITICAL"
 
     printf 'TYPE=RESULT\nHOST=%s\nPORT=%s\nPROTO=%s\nDAYS=%s\nEXPIRY=%s\nEXPIRY_TS=%s\nCA=%s\nSTATUS=%s\nCHAIN=%s\n' \
@@ -703,6 +708,103 @@ install_escalation_hooks() {
     }
 }
 
+# ── Utility helpers ─────────────────────────────────────────
+# _repeat: write a character N times without forking a subshell.
+_repeat() {
+    local char="$1" n="$2" out="" i
+    for (( i=0; i<n; i++ )); do out+="$char"; done
+    printf '%s' "$out"
+}
+
+# _json_escape: escape backslashes and double-quotes for use in
+# JSON string values. Used by --check --json.
+_json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+
+# ── Table rendering ──────────────────────────────────────────
+# hline, print_group, print_error_row, and the on_* hooks are
+# only called inside the terminal BASH_SOURCE guard, but are
+# defined here at library level so the script reads top-to-bottom:
+# all function definitions together, then all command dispatch.
+
+hline() {
+    local left=$1 mid=$2 right=$3
+    printf "%s%s%s%s%s%s%s%s%s%s%s\n" \
+        "$left" "$(_repeat "$H" $((COL1+2)))" \
+        "$mid"  "$(_repeat "$H" $((COL2+2)))" \
+        "$mid"  "$(_repeat "$H" $((COL3+2)))" \
+        "$mid"  "$(_repeat "$H" $((COL4+2)))" \
+        "$mid"  "$(_repeat "$H" $((COL5+2)))" \
+        "$right"
+}
+
+print_group() {
+    local name="$1"
+    # Inner width = all column content + padding + separators between ╠ and ╣:
+    # (COL1+2) + 1 + (COL2+2) + 1 + (COL3+2) + 1 + (COL4+2) + 1 + (COL5+2)
+    local inner=$(( COL1 + COL2 + COL3 + COL4 + COL5 + 14 ))
+    local pad=$(( inner - ${#name} - 2 ))   # 2 = leading space + trailing space around name
+    [ "$pad" -lt 0 ] && pad=0
+    printf "%s ${BLUE}${BOLD}%s${NC} %s%s\n" \
+        "$GRP_L" "$name" "$(_repeat "$H" $pad)" "$GRP_R"
+}
+
+print_error_row() {
+    local hostname="$1" reason="$2"
+    local pad=$(( COL3 - 5 ))
+    printf "%s %-*s %s %-*s %s %b%-5s%b%*s %s %-*s %s %-*s %s\n" \
+        "$ROW_L" $COL1 "$hostname" \
+        "$ROW_M" $COL2 "-" \
+        "$ROW_M" "$RED" "ERROR" "$NC" $pad "" \
+        "$ROW_M" $COL4 "$reason" \
+        "$ROW_M" $COL5 "" \
+        "$ROW_R"
+}
+
+on_group() {
+    if [ "${_first_group:-true}" = true ]; then _first_group=false
+    else hline "$MID_L" "$MID_M" "$MID_R"
+    fi
+    print_group "$1"
+}
+
+on_cert_error() { print_error_row "$1" "$3"; }
+
+on_format_error() { print_error_row "$1" "Invalid format"; }
+
+on_cert_result() {
+    local hostname="$1" port="$2" days_left="$3" short_date="$4"
+    local ca_name="$5" status="$6" chain_status="${9:-OK}"
+    local color icon text
+
+    case "$status" in
+        EXPIRED)         color="$RED";    icon="✗"; text="EXP -${days_left#-}d";    crit=$((crit+1)) ;;
+        URGENT|CRITICAL) color="$RED";    icon="✗"; text="${days_left}d";            crit=$((crit+1)) ;;
+        WARNING)         color="$YELLOW"; icon="⚠"; text="${days_left}d";            warn=$((warn+1)) ;;
+        *)               color="$GREEN";  icon="✓"; text="${days_left}d";            ok=$((ok+1))   ;;
+    esac
+
+    # Chain column: ✓ green for OK, ⚠ yellow for any broken chain.
+    # Kept separate from the CA column so it never displaces the layout.
+    local chain_icon chain_color
+    if [ "$chain_status" = "OK" ]; then
+        chain_icon="✓"; chain_color="$GREEN"
+    else
+        chain_icon="⚠"; chain_color="$YELLOW"
+    fi
+
+    # chain_icon (✓/⚠) is multi-byte UTF-8. bash printf pads %-*s by bytes,
+    # not display columns, so unicode symbols end up under-padded. Print the
+    # symbol directly and supply explicit trailing spaces instead.
+    # Cell width = COL5+2 = 5 display cols: 1 leading space + symbol + 3 spaces.
+    printf "%s %-*s %s %-*s %s %b%s%-*s%b %s %-*s %s %b%s%b   %s\n" \
+        "$ROW_L" $COL1 "$hostname" \
+        "$ROW_M" $COL2 "$short_date" \
+        "$ROW_M" "${color}" "$icon " $((COL3-2)) "$text" "${NC}" \
+        "$ROW_M" $COL4 "$ca_name" \
+        "$ROW_M" "${chain_color}" "$chain_icon" "${NC}" \
+        "$ROW_R"
+}
+
 # ════════════════════════════════════════════════════════════
 #  TERMINAL OUTPUT
 #  Everything below executes only when this script is run
@@ -724,7 +826,12 @@ unset _conf
 : "${WARN_DAYS:=15}"
 : "${CRIT_DAYS:=7}"
 : "${URGENT_DAYS:=2}"
-: "${CA_MAX_LEN:=22}"  # narrower than wrapper default (30) — fits the fixed-width table
+# CA_MAX_LEN for the terminal is 22, narrower than the wrapper default of 30.
+# The terminal table has a fixed column budget: COL4 = CA_MAX_LEN chars, and
+# the total table width is COL1+COL2+COL3+COL4+COL5 + separators. At 22 the
+# table fits an 80-column terminal. Wrappers (email, webhook, etc.) format
+# free-form text so they can afford the longer default without layout issues.
+: "${CA_MAX_LEN:=22}"
 : "${MAX_JOBS:=10}"
 
 # ── Colors ───────────────────────────────────────────────────
@@ -1028,15 +1135,23 @@ if [[ "$1" == "--check" ]]; then
     trap 'rm -f "$_ch_tmp"' EXIT
     _check_cert_worker "$_ch_host" "$_ch_port" "$_ch_tmp" "$_ch_proto"
 
-    _ch_status=$(_worker_field "$_ch_tmp" STATUS)
-    _ch_type=$(_worker_field "$_ch_tmp" TYPE)
-    _ch_days=$(_worker_field "$_ch_tmp" DAYS)
-    _ch_expiry=$(_worker_field "$_ch_tmp" EXPIRY)
-    _ch_expiry_ts=$(_worker_field "$_ch_tmp" EXPIRY_TS)
-    _ch_ca=$(_worker_field "$_ch_tmp" CA)
-    _ch_chain=$(_worker_field "$_ch_tmp" CHAIN)
-    _ch_reason=$(_worker_field "$_ch_tmp" REASON)
-    _ch_proto_out="${_ch_proto:-tls}"
+    # Read all worker output fields in one pass into an associative array.
+    # This replaces 8 individual _worker_field calls (each a subshell fork)
+    # with a single while-read loop over the temp file.
+    declare -A _ch_fields
+    while IFS='=' read -r _k _v; do
+        [[ -n "$_k" ]] && _ch_fields["$_k"]="$_v"
+    done < "$_ch_tmp"
+
+    _ch_type=${_ch_fields[TYPE]:-}
+    _ch_status=${_ch_fields[STATUS]:-}
+    _ch_days=${_ch_fields[DAYS]:-}
+    _ch_expiry=${_ch_fields[EXPIRY]:-}
+    _ch_expiry_ts=${_ch_fields[EXPIRY_TS]:-}
+    _ch_ca=${_ch_fields[CA]:-}
+    _ch_chain=${_ch_fields[CHAIN]:-}
+    _ch_reason=${_ch_fields[REASON]:-}
+    _ch_proto_out="${_ch_fields[PROTO]:-tls}"
 
     # ── key=value output (default) ──────────────────────────
     if [ "$_ch_mode" = "kv" ]; then
@@ -1071,8 +1186,16 @@ if [[ "$1" == "--check" ]]; then
                     "$_ch_host" "$_ch_port" "$_ch_days" "$_ch_expiry"
                 exit 1 ;;
             CRITICAL)
-                printf 'CRITICAL - %s:%s: certificate expires in %s days (%s)\n' \
-                    "$_ch_host" "$_ch_port" "$_ch_days" "$_ch_expiry"
+                # A CRITICAL status may be due to expiry threshold OR a broken
+                # certificate chain (chain-broken leaf is promoted to CRITICAL
+                # by the worker). Distinguish the two in the output message.
+                if [ -n "$_ch_chain" ] && [ "$_ch_chain" != "OK" ]; then
+                    printf 'CRITICAL - %s:%s: chain verification failed: %s (%s days remaining)\n' \
+                        "$_ch_host" "$_ch_port" "$_ch_chain" "$_ch_days"
+                else
+                    printf 'CRITICAL - %s:%s: certificate expires in %s days (%s)\n' \
+                        "$_ch_host" "$_ch_port" "$_ch_days" "$_ch_expiry"
+                fi
                 exit 2 ;;
             URGENT)
                 printf 'CRITICAL - %s:%s: certificate expires in %s days — urgent (%s)\n' \
@@ -1089,11 +1212,11 @@ if [[ "$1" == "--check" ]]; then
     fi
 
     # ── JSON output ─────────────────────────────────────────
-    # Emits a single JSON object. String values are escaped for
-    # safety; numeric fields (days) are emitted without quotes.
-    # Chain status is included so consumers can detect broken
-    # intermediate CAs without parsing the ca field.
-    _json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+    # Emits a single JSON object. String values are escaped via
+    # _json_escape (defined at library level). Numeric fields
+    # (days, port, expiry_ts) are unquoted integers. chain_status
+    # lets consumers detect broken intermediate CAs without
+    # inspecting the ca field.
     if [ "$_ch_mode" = "json" ]; then
         if [ "$_ch_type" = "ERROR" ]; then
             printf '{\n'
@@ -1119,9 +1242,10 @@ if [[ "$1" == "--check" ]]; then
     fi
 
     # ── Exit code ────────────────────────────────────────────
-    # All modes share the same exit code logic:
-    #   0=OK  1=WARNING  2=CRITICAL/URGENT/EXPIRED/ERROR
-    # (--nagios exits earlier in the case above with proper exit 3 for UNKNOWN)
+    # STATUS from the worker already encodes chain errors: a broken
+    # chain with an otherwise-OK leaf is promoted to CRITICAL in the
+    # worker, so exit codes here simply follow STATUS.
+    # (--nagios exits earlier above with its own exit code mapping.)
     [ "$_ch_type" = "ERROR" ] && exit 2
     case "$_ch_status" in
         OK)                        exit 0 ;;
@@ -1130,98 +1254,6 @@ if [[ "$1" == "--check" ]]; then
         *)                         exit 2 ;;
     esac
 fi
-
-# ── Table helpers ────────────────────────────────────────────
-# Repeat a character N times without forking a subshell.
-_repeat() {
-    local char="$1" n="$2" out="" i
-    for (( i=0; i<n; i++ )); do out+="$char"; done
-    printf '%s' "$out"
-}
-
-hline() {
-    local left=$1 mid=$2 right=$3
-    printf "%s%s%s%s%s%s%s%s%s%s%s\n" \
-        "$left" "$(_repeat "$H" $((COL1+2)))" \
-        "$mid"  "$(_repeat "$H" $((COL2+2)))" \
-        "$mid"  "$(_repeat "$H" $((COL3+2)))" \
-        "$mid"  "$(_repeat "$H" $((COL4+2)))" \
-        "$mid"  "$(_repeat "$H" $((COL5+2)))" \
-        "$right"
-}
-
-print_group() {
-    local name="$1"
-    # Inner width = total chars between GRP_L and GRP_R in a normal hline row:
-    # (COL1+2) + 1 + (COL2+2) + 1 + (COL3+2) + 1 + (COL4+2) + 1 + (COL5+2)
-    local inner=$(( COL1 + COL2 + COL3 + COL4 + COL5 + 14 ))
-    # Visible label including surrounding spaces: " Name "
-    local label=" ${name} "
-    local pad=$(( inner - ${#label} ))
-    [ "$pad" -lt 0 ] && pad=0
-    printf "%s ${BLUE}${BOLD}%s${NC} %s%s\n" \
-        "$GRP_L" "$name" "$(_repeat "$H" $pad)" "$GRP_R"
-}
-
-print_error_row() {
-    local hostname="$1" reason="$2"
-    local pad=$(( COL3 - 5 ))
-    printf "%s %-*s %s %-*s %s %b%-5s%b%*s %s %-*s %s %-*s %s\n" \
-        "$ROW_L" $COL1 "$hostname" \
-        "$ROW_M" $COL2 "-" \
-        "$ROW_M" "$RED" "ERROR" "$NC" $pad "" \
-        "$ROW_M" $COL4 "$reason" \
-        "$ROW_M" $COL5 "" \
-        "$ROW_R"
-}
-
-# ── Terminal hooks ───────────────────────────────────────────
-on_group() {
-    if [ "${_first_group:-true}" = true ]; then _first_group=false
-    else hline "$MID_L" "$MID_M" "$MID_R"
-    fi
-    print_group "$1"
-}
-
-on_cert_error() { print_error_row "$1" "$3"; }
-
-on_format_error() { print_error_row "$1" "Invalid format"; }
-
-on_cert_result() {
-    local hostname="$1" port="$2" days_left="$3" short_date="$4"
-    local ca_name="$5" status="$6" chain_status="${9:-OK}"
-    local color icon text
-
-    case "$status" in
-        EXPIRED)         color="$RED";    icon="✗"; text="EXP -${days_left#-}d";    crit=$((crit+1)) ;;
-        URGENT|CRITICAL) color="$RED";    icon="✗"; text="${days_left}d";            crit=$((crit+1)) ;;
-        WARNING)         color="$YELLOW"; icon="⚠"; text="${days_left}d";            warn=$((warn+1)) ;;
-        *)               color="$GREEN";  icon="✓"; text="${days_left}d";            ok=$((ok+1))   ;;
-    esac
-
-    # Chain column: ✓ green for OK, ⚠ yellow for any broken chain.
-    # Kept separate from the CA column so it never overflows the layout.
-    local chain_icon chain_color
-    if [ "$chain_status" = "OK" ]; then
-        chain_icon="✓"; chain_color="$GREEN"
-    else
-        chain_icon="⚠"; chain_color="$YELLOW"
-    fi
-
-    # Note: chain_icon (✓/⚠) is a multi-byte UTF-8 character. bash printf
-    # pads %-*s by bytes, not display columns, so unicode symbols end up
-    # under-padded. We print the symbol directly and add explicit spaces.
-    # Chain cell width = COL5+2 = 5 display cols: 1 leading space + 1 symbol + 3 trailing spaces.
-    # Three trailing spaces are needed (not two) because printf %b%s%b prints the symbol
-    # directly without any padding — the surrounding spaces are the only padding.
-    printf "%s %-*s %s %-*s %s %b%s%-*s%b %s %-*s %s %b%s%b   %s\n" \
-        "$ROW_L" $COL1 "$hostname" \
-        "$ROW_M" $COL2 "$short_date" \
-        "$ROW_M" "${color}" "$icon " $((COL3-2)) "$text" "${NC}" \
-        "$ROW_M" $COL4 "$ca_name" \
-        "$ROW_M" "${chain_color}" "$chain_icon" "${NC}" \
-        "$ROW_R"
-}
 
 # ── Run ──────────────────────────────────────────────────────
 echo ""
