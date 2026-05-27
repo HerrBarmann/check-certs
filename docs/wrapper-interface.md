@@ -339,7 +339,7 @@ previous run.
 | `OK` | Certificate valid, chain intact | – | – |
 | `RENEWED` | Was non-OK last run, now valid | ✓ once | – |
 | `WARNING` | `days_left < WARN_DAYS` | ✓ on first occurrence or status change | – |
-| `CRITICAL` | `days_left < CRIT_DAYS`, or chain broken with valid leaf | ✓ on status change | ✓ every 23 h |
+| `CRITICAL` | `days_left < CRIT_DAYS`, or chain broken with otherwise-OK leaf | ✓ on status change | ✓ every 23 h |
 | `URGENT` | `days_left < URGENT_DAYS` | ✓ on status change | ✓ every 23 h |
 | `EXPIRED` | `days_left < 0` | ✓ on status change | ✓ every 23 h |
 | `ERROR` | Host unreachable or invalid port | ✓ on first occurrence | ✓ every 23 h |

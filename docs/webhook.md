@@ -109,7 +109,7 @@ Posted once per affected server. `"event"` is `"finding"` for new issues and sta
 | ----- | ------- |
 | `RENEWED` | Was expiring or unreachable, is now valid |
 | `WARNING` | Expiring soon (below `WARN_DAYS`) |
-| `CRITICAL` | Expiring critically soon, or chain broken |
+| `CRITICAL` | Expiring critically soon, or chain broken with valid leaf |
 | `URGENT` | Expiring urgently soon (below `URGENT_DAYS`) |
 | `EXPIRED` | Certificate has expired |
 | `ERROR` | Server unreachable or invalid port; `ca` field carries the reason |

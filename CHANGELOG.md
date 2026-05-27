@@ -4,6 +4,22 @@ All notable changes to check-certs are documented here.
 
 ---
 
+## 2.5.6 — 2026-05-26
+
+### Changes
+
+**`--check` exits 1 on chain errors.** A valid certificate with a broken intermediate CA now exits 1 (WARNING) rather than 0. A cert that is already WARNING keeps exit 1; CRITICAL/URGENT/EXPIRED keep exit 2. This makes `--check` usable as a strict gate in CI pipelines where a broken chain should not silently pass.
+
+**`_json_escape` moved to library level.** Previously defined inside the `--check` block and re-created on every invocation. Now defined once alongside the other utility helpers.
+
+**Table helpers moved above the BASH_SOURCE guard.** `_repeat`, `hline`, `print_group`, `print_error_row`, and the `on_*` terminal hooks were defined after more than 1100 lines of command dispatch. Moved to library level so all function definitions are together and the script reads top-to-bottom.
+
+**`CA_MAX_LEN` comment expanded.** The terminal uses 22 and the wrapper default is 30. The comment now explains why: the terminal has a fixed column budget (fits an 80-column terminal at 22); wrappers format free-form text and can use the longer default without layout issues.
+
+**`--check` field reading uses an associative array.** Previously read each worker output field with a separate `_worker_field` call (one subshell fork each, 8 total). Now reads the file once with a `while IFS='=' read` loop into a `declare -A` array. Values containing `=` signs (e.g. CA names with `O=` or `CN=`) are handled correctly because `IFS='='` with two read variables splits only on the first `=`.
+
+---
+
 ## 2.5.5 — 2026-05-26
 
 ### Bug fix
