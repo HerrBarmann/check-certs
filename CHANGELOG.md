@@ -4,6 +4,36 @@ All notable changes to check-certs are documented here.
 
 ---
 
+## 2.6.2 — 2026-05-27
+
+### Bug fix
+
+**Batch mode silently skipped bare hostnames.** `check-certs --check www.google.de www.telekom.de` only returned a result for hosts with an explicit port. The batch path writes a temp `servers.conf` and feeds it to the server-list loop, which calls `parse_hostspec` and silently discards entries that don't match `host:port`. Bare hostnames without a port were therefore skipped. The batch write step now normalises bare hostnames to `host:443` (matching the single-host fallback), so all three of `host`, `host:port`, and `host:port:proto` work correctly in batch mode.
+
+---
+
+## 2.6.1 — 2026-05-27
+
+### New feature
+
+**`--check` batch mode — multiple hosts as arguments.**
+
+`--check` now accepts any number of hostspecs as arguments. They are checked in parallel (respecting `MAX_JOBS`) and results are emitted in argument order:
+
+```bash
+check-certs --check api.example.com ldap.example.com:636:ldaps [::1]:443
+check-certs --check --json api.example.com ldap.example.com:636
+check-certs --check --nagios api.example.com ldap.example.com:636
+```
+
+This completes the `--check` scripting surface: no args = `servers.conf`, one arg = single host, multiple args = batch.
+
+All three output modes work for batch. `--json` produces a JSON array. `--nagios` produces one line per host and exits with the worst code across all hosts (exit 2 if any CRITICAL/ERROR, exit 1 if any WARNING, exit 0 if all OK). This makes it possible to use check-certs as a Nagios plugin that checks several related hosts in a single invocation.
+
+The batch path writes a temp `servers.conf` from the argument list and feeds it to the existing server-list machinery — no duplicated worker or output logic.
+
+---
+
 ## 2.6.0 — 2026-05-27
 
 ### New feature

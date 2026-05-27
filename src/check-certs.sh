@@ -2,11 +2,11 @@
 
 # ============================================================
 #  check-certs.sh – SSL certificate checker
-#  Version 2.6.0
+#  Version 2.6.2
 #
 #  STANDALONE USAGE (terminal table, macOS + Linux):
 #    check-certs [hostname[:port[:proto]]]          Terminal table (IPv6: [addr]:port[:proto])
-#    check-certs --check [--nagios|--json] <host>  Scripting / monitoring integration
+#    check-certs --check [--nagios|--json] [<host> …]  Scripting / monitoring integration
 #    check-certs --scan <hostname>                 Probe common TLS ports (onboarding helper)
 #    check-certs --list | --version | --help
 #
@@ -53,7 +53,7 @@
 # ============================================================
 
 # ── Version ──────────────────────────────────────────────────
-VERSION="2.6.0"
+VERSION="2.6.2"
 
 # ── Date command ─────────────────────────────────────────────
 # macOS: gdate via coreutils; Linux: GNU date natively
@@ -864,12 +864,12 @@ if [[ "$1" == "--help" || "$1" == "-h" ]]; then
     printf "${BOLD}Usage:${NC}\n"
     printf "  ${CYAN}check-certs${NC}                              Check all servers from servers.conf\n"
     printf "  ${CYAN}check-certs${NC} <host>[:<port>[:<proto>]]   Check a single server (terminal table)\n"
-    printf "  ${CYAN}check-certs --check${NC} [<host>[:<port>[:<proto>]]]\n"
-    printf "                                           key=value output; no host = check all servers.conf entries\n"
-    printf "  ${CYAN}check-certs --check --nagios${NC} <host>[:<port>[:<proto>]]\n"
-    printf "                                           Nagios/Icinga plugin output (single host only)\n"
-    printf "  ${CYAN}check-certs --check --json${NC} [<host>[:<port>[:<proto>]]]\n"
-    printf "                                           JSON object (single host) or JSON array (all hosts)\n"
+    printf "  ${CYAN}check-certs --check${NC} [<host> …]\n"
+    printf "                                           key=value; no args = servers.conf, one arg = single host, multiple = batch\n"
+    printf "  ${CYAN}check-certs --check --nagios${NC} <host>[:<port>] …\n"
+    printf "                                           Nagios/Icinga plugin output; one line per host\n"
+    printf "  ${CYAN}check-certs --check --json${NC} [<host> …]\n"
+    printf "                                           JSON object (single), JSON array (multiple or no args)\n"
     printf "  ${CYAN}check-certs --scan${NC} <hostname>             Probe common TLS ports, print servers.conf snippet\n"
     printf "  ${CYAN}check-certs --list${NC}                       List all servers from servers.conf\n"
     printf "  ${CYAN}check-certs --clear-state${NC}                Remove all host state files (forces fresh notifications)\n"
@@ -1252,17 +1252,37 @@ if [[ "$1" == "--check" ]]; then
 
     _ch_arg="${1:-}"
 
-    # ── Server-list mode (no hostspec given) ─────────────────
+    # ── Batch mode: multiple hostspecs given as arguments ────
+    # Two or more arguments remain → write a temp servers.conf and
+    # feed it to the server-list path below. This lets the same
+    # parallel worker pool and output logic handle all three cases:
+    #   check-certs --check                 (servers.conf)
+    #   check-certs --check host1 host2 …   (batch from args)
+    #   check-certs --check host             (single host)
+    # --nagios is valid for batch: one line per host, worst exit code.
+    if [ $# -ge 2 ]; then
+        _ch_batch_tmp=$(mktemp) || { printf 'Error: mktemp failed
+' >&2; exit 2; }
+        trap 'rm -f "$_ch_batch_tmp"' EXIT
+        for _ch_barg in "$@"; do
+            # Normalise bare hostnames to host:443 so the server-list
+            # loop (which requires host:port) does not silently skip them.
+            if [[ "$_ch_barg" =~ ^[^:[:space:]]+$ ]]; then
+                printf '%s:443
+' "$_ch_barg"
+            else
+                printf '%s
+' "$_ch_barg"
+            fi
+        done > "$_ch_batch_tmp"
+        # Repoint SERVER_FILE to the temp file and fall through to
+        # the server-list path, which reads SERVER_FILE directly.
+        SERVER_FILE="$_ch_batch_tmp"
+        _ch_arg=""   # trigger server-list path below
+    fi
+
+    # ── Server-list / batch output path ─────────────────────
     if [ -z "$_ch_arg" ]; then
-        if [ "$_ch_mode" = "nagios" ]; then
-            printf 'Error: --nagios requires a single hostspec.
-' >&2
-            printf 'Nagios plugins check exactly one service at a time.
-' >&2
-            printf 'Usage: check-certs --check --nagios <host>[:<port>[:<proto>]]
-' >&2
-            exit 1
-        fi
 
         if [ ! -f "$SERVER_FILE" ]; then
             printf 'Error: server file not found: %s
@@ -1366,6 +1386,13 @@ if [[ "$1" == "--check" ]]; then
                 else
                     printf '%s\n' "$_sl_obj_indented"
                 fi
+            elif [ "$_ch_mode" = "nagios" ]; then
+                # One Nagios-format line per host; exit code reflects
+                # the worst status across all hosts (already tracked in
+                # _ch_sl_worst). Exit 3 (UNKNOWN) per host is downgraded
+                # to exit 2 in the aggregate — a single unreachable host
+                # in a batch should not suppress a CRITICAL from another.
+                _ch_print_record "$_sl_out" "nagios"
             fi
         done
 
