@@ -98,7 +98,7 @@ echo -e "${BOLD}Old symlink${NC}"
 if [ -L "/usr/local/bin/check-certs" ]; then
     target=$(readlink "/usr/local/bin/check-certs")
     if [[ "$target" == "$HOME/scripts/check-certs/"* ]]; then
-        sudo rm -f "/usr/local/bin/check-certs"
+        rm -f "/usr/local/bin/check-certs"
         ok "Removed old symlink /usr/local/bin/check-certs → $target"
     else
         skip "/usr/local/bin/check-certs points to $target — not from old install, leaving it"

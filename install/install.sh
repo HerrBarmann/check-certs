@@ -43,19 +43,23 @@ case "$PLATFORM" in
         ;;
 esac
 
+# check-certs installs to /usr/local/lib/ and /usr/local/bin/ — both
+# require root on macOS and Linux. Run with sudo:
+#   macOS:  sudo ./install/install.sh
+#   Linux:  sudo ./install/install.sh
+if [ "$(id -u)" -ne 0 ]; then
+    echo -e "${RED}✗ This installer must be run as root.${NC}"
+    echo ""
+    echo "  Run it with sudo:"
+    echo -e "    ${BOLD}sudo ./install/install.sh${NC}"
+    echo ""
+    exit 1
+fi
+
 INSTALL_DIR="$(cd "$(dirname "$0")" && pwd)"
 SRC_DIR="$(cd "$INSTALL_DIR/../src" && pwd)"
 CONF_DIR="$(cd "$INSTALL_DIR/../config" && pwd)"
 CONF_NAME="servers.conf"
-
-# On macOS the installer runs as the user; system directories
-# (/usr/local/lib, /usr/local/bin) require sudo.
-# On Linux the installer is run with sudo already, so SUDO is empty.
-if [ "$PLATFORM" = "macos" ]; then
-    SUDO="sudo"
-else
-    SUDO=""
-fi
 
 # Platform-specific defaults
 if [ "$PLATFORM" = "macos" ]; then
@@ -110,8 +114,8 @@ require_file() {
 
 copy_script() {
     local name="$1"
-    $SUDO cp "$SRC_DIR/$name" "$TARGET_DIR/$name"
-    $SUDO chmod +x "$TARGET_DIR/$name"
+    cp "$SRC_DIR/$name" "$TARGET_DIR/$name"
+    chmod +x "$TARGET_DIR/$name"
     echo -e "${GREEN}✓ $name installed${NC}"
 }
 
@@ -598,7 +602,7 @@ if [ "$PLATFORM" = "linux" ] && [ "$INSTALL_MAIL" = true ] && \
 fi
 
 # ── Create directories ────────────────────────────────────────
-$SUDO mkdir -p "$TARGET_DIR"
+mkdir -p "$TARGET_DIR"
 mkdir -p "$CONF_TARGET_DIR"
 if [ "$PLATFORM" = "macos" ]; then
     mkdir -p "$LOG_DIR" "$STATE_DIR" "$HOME/Library/LaunchAgents"
@@ -618,10 +622,10 @@ copy_conf
 # requiring a shell alias or sourcing a rc file.
 ALIAS_RC_FILE=""  # kept for summary section compatibility
 if [ -L "$BIN_DIR/check-certs" ] || [ -f "$BIN_DIR/check-certs" ]; then
-    $SUDO rm -f "$BIN_DIR/check-certs"
+    rm -f "$BIN_DIR/check-certs"
     echo -e "${YELLOW}⚠ Existing $BIN_DIR/check-certs removed${NC}"
 fi
-$SUDO ln -s "$TARGET_DIR/check-certs.sh" "$BIN_DIR/check-certs"
+ln -s "$TARGET_DIR/check-certs.sh" "$BIN_DIR/check-certs"
 echo -e "${GREEN}✓ Symlink created: $BIN_DIR/check-certs${NC}"
 
 # ── Write check-certs.conf ────────────────────────────────────

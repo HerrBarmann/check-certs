@@ -65,7 +65,7 @@ Six optional automation variants extend it with background monitoring:
 **Automatic** – installs `check-certs.sh`, creates a symlink at `/usr/local/bin/check-certs`, and optionally configures one or more automation variants (notifications, email, webhook, Teams, Pushover, ntfy) via launchd:
 
 ```bash
-chmod +x install/install.sh && ./install/install.sh
+chmod +x install/install.sh && sudo ./install/install.sh
 ```
 
 **Manual** – terminal table only:

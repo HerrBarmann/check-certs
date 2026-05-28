@@ -44,7 +44,7 @@
 | *"Homebrew not found"* | Install Homebrew: `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"` |
 | *"gdate: command not found"* | macOS only — install coreutils: `brew install coreutils` |
 | `check-certs` command not found after install | On macOS the installer creates a symlink at `/usr/local/bin/check-certs` — verify it exists: `ls -la /usr/local/bin/check-certs`. On Linux, run `source ~/.bashrc` or open a new terminal to pick up the alias. |
-| Installer says "must be run with sudo" | Linux installation requires root to write to `/opt/check-certs` and `/var/lib/check-certs`. Run `sudo ./install/install.sh`. |
+| Installer says "must be run as root" | The installer writes to `/usr/local/lib/` and `/usr/local/bin/` and requires root on both macOS and Linux. Run `sudo ./install/install.sh`. |
 | Re-running the installer overwrote my settings | `servers.conf` is never overwritten. `check-certs.conf` is backed up to `check-certs.conf.bak` before being overwritten — your old settings are in that file. |
 | State directory is missing after install | The installer creates state directories with `mkdir -p`. If they are absent, run `state_init` by executing any automation variant once, or create them manually: `mkdir -p /var/lib/check-certs/state-mail` etc. |
 
