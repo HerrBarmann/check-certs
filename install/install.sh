@@ -48,9 +48,9 @@ SRC_DIR="$(cd "$INSTALL_DIR/../src" && pwd)"
 CONF_DIR="$(cd "$INSTALL_DIR/../config" && pwd)"
 CONF_NAME="servers.conf"
 
-# On macOS the installer runs as the user; system directories
-# (/usr/local/lib, /usr/local/bin) require sudo.
-# On Linux the installer is run with sudo already, so SUDO is empty.
+# On macOS the installer runs as the regular user (Homebrew requires it).
+# $SUDO is used only for commands writing to system paths (/usr/local/).
+# On Linux the installer is run with sudo already, so $SUDO is empty.
 if [ "$PLATFORM" = "macos" ]; then
     SUDO="sudo"
 else
@@ -595,6 +595,20 @@ if [ "$PLATFORM" = "linux" ] && [ "$INSTALL_MAIL" = true ] && \
         chmod 640 /etc/ssmtp/ssmtp.conf
         echo -e "${GREEN}✓ ssmtp configured${NC}"
     fi
+fi
+
+# ── Request sudo credentials (macOS only) ────────────────────
+# Scripts and the command symlink are installed to /usr/local/, which
+# requires elevated privileges. We request them once here so the
+# password prompt appears at a clearly labelled point rather than
+# silently mid-installation.
+if [ "$PLATFORM" = "macos" ]; then
+    echo ""
+    echo -e "  ${BOLD}Administrator privileges required${NC}"
+    echo "  check-certs installs scripts to /usr/local/lib/ and a"
+    echo "  symlink to /usr/local/bin/. Your password is needed once."
+    echo ""
+    sudo -v
 fi
 
 # ── Create directories ────────────────────────────────────────
