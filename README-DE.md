@@ -62,7 +62,7 @@ Sechs optionale Automatisierungsvarianten ergänzen es um Hintergrundüberwachun
 
 **Voraussetzung:** Homebrew (`coreutils` und `openssl` werden automatisch installiert).
 
-**Automatisch** – installiert `check-certs.sh`, richtet den Alias ein und konfiguriert optional eine oder mehrere Automatisierungsvarianten (Benachrichtigungen, E-Mail, Webhook, Teams, Pushover, ntfy) via launchd:
+**Automatisch** – installiert `check-certs.sh`, richtet den Befehl als Symlink in `/usr/local/bin/` ein und konfiguriert optional eine oder mehrere Automatisierungsvarianten (Benachrichtigungen, E-Mail, Webhook, Teams, Pushover, ntfy) via launchd:
 
 ```bash
 chmod +x install/install.sh && ./install/install.sh
@@ -72,14 +72,15 @@ chmod +x install/install.sh && ./install/install.sh
 
 ```bash
 brew install coreutils openssl
-mkdir -p ~/scripts/check-certs
-cp src/check-certs.sh config/servers.conf config/check-certs.conf ~/scripts/check-certs/
-chmod +x ~/scripts/check-certs/check-certs.sh
-echo 'alias check-certs="$HOME/scripts/check-certs/check-certs.sh"' >> ~/.zshrc
-source ~/.zshrc
+sudo mkdir -p /usr/local/lib/check-certs
+sudo cp src/check-certs.sh /usr/local/lib/check-certs/
+sudo chmod +x /usr/local/lib/check-certs/check-certs.sh
+sudo ln -s /usr/local/lib/check-certs/check-certs.sh /usr/local/bin/check-certs
+mkdir -p ~/.config/check-certs
+cp config/servers.conf config/check-certs.conf ~/.config/check-certs/
 ```
 
-Für Hintergrundüberwachung nach einer manuellen Installation das entsprechende Skript aus `src/` ins Installationsverzeichnis kopieren und der Anleitung folgen:
+Für Hintergrundüberwachung nach einer manuellen Installation das entsprechende Skript aus `src/` nach `/usr/local/lib/check-certs/` kopieren und der Anleitung folgen:
 
 - 🍎 [macOS-Benachrichtigungen](docs/macos-notify.md) – `check-certs-notify.sh`
 - 📧 [E-Mail](docs/email.md) – `check-certs-mail.sh`
@@ -92,7 +93,7 @@ Für Hintergrundüberwachung nach einer manuellen Installation das entsprechende
 
 GNU `date` ist nativ verfügbar – kein Homebrew oder `coreutils` nötig.
 
-**Automatisch** (Debian/Ubuntu) – installiert `check-certs.sh` und konfiguriert optional eine oder mehrere Automatisierungsvarianten (E-Mail, Webhook, Teams, Pushover, ntfy) via cron:
+**Automatisch** (Debian/Ubuntu) – installiert `check-certs.sh`, richtet den Befehl als Symlink in `/usr/local/bin/` ein und konfiguriert optional eine oder mehrere Automatisierungsvarianten (E-Mail, Webhook, Teams, Pushover, ntfy) via cron:
 
 ```bash
 chmod +x install/install.sh && sudo ./install/install.sh
@@ -104,11 +105,10 @@ chmod +x install/install.sh && sudo ./install/install.sh
 apt install openssl        # Debian/Ubuntu
 # oder: dnf install openssl  # Fedora/RHEL
 
-mkdir -p /opt/check-certs
-cp src/check-certs.sh config/servers.conf config/check-certs.conf /opt/check-certs/
-chmod +x /opt/check-certs/check-certs.sh
-echo 'alias check-certs="/opt/check-certs/check-certs.sh"' >> ~/.bashrc
-source ~/.bashrc
+sudo mkdir -p /opt/check-certs
+sudo cp src/check-certs.sh config/servers.conf config/check-certs.conf /opt/check-certs/
+sudo chmod +x /opt/check-certs/check-certs.sh
+sudo ln -s /opt/check-certs/check-certs.sh /usr/local/bin/check-certs
 ```
 
 Für Hintergrundüberwachung nach einer manuellen Installation das entsprechende Skript aus `src/` ins Installationsverzeichnis kopieren und der Anleitung folgen:
@@ -188,10 +188,10 @@ Reines-TLS-Aliase (selbsterklärend, kein STARTTLS): `tls` `https` `ldaps` `imap
 
 ## Konfiguration
 
-Alle Einstellungen stehen in `check-certs.conf` im selben Verzeichnis wie die Skripte. Der Installer schreibt eine minimale `check-certs.conf` mit nur den Einstellungen, die für die gewählte Variante relevant sind. Bei manueller Installation `config/check-certs.conf` aus dem Repository als Ausgangspunkt kopieren – die Datei dokumentiert alle verfügbaren Einstellungen. Änderungen werden direkt in der Datei vorgenommen – die Skripte selbst müssen nie angepasst werden.
+Alle Einstellungen stehen in `check-certs.conf`. Der Installer schreibt eine minimale `check-certs.conf` mit nur den Einstellungen, die für die gewählte Variante relevant sind. Bei manueller Installation `config/check-certs.conf` aus dem Repository als Ausgangspunkt kopieren – die Datei dokumentiert alle verfügbaren Einstellungen. Änderungen werden direkt in der Datei vorgenommen – die Skripte selbst müssen nie angepasst werden.
 
 ```bash
-nano ~/scripts/check-certs/check-certs.conf   # macOS
+nano ~/.config/check-certs/check-certs.conf   # macOS
 nano /opt/check-certs/check-certs.conf         # Linux
 ```
 
@@ -397,6 +397,7 @@ src/
 
 install/
 ├── install.sh                     ← Installer für macOS und Linux
+├── cleanup-macos.sh               ← Bereinigungsskript für Pre-2.7.0-Installationen
 ├── com.check-certs.notify.plist   ← launchd-Jobvorlage (Benachrichtigungen)
 ├── com.check-certs.mail.plist     ← launchd-Jobvorlage (E-Mail)
 ├── com.check-certs.webhook.plist  ← launchd-Jobvorlage (Webhook)
@@ -427,7 +428,7 @@ tests/
 | Kette wird immer als ungültig angezeigt | Meist fehlt ein Zwischenzertifikat im lokalen Vertrauensspeicher. CA-Zertifikate aktualisieren: `brew install ca-certificates` (macOS) oder `apt install ca-certificates` (Linux). Prüfen mit: `openssl s_client -connect hostname:port -servername hostname </dev/null` |
 | *"gdate: command not found"* | Nur macOS: `brew install coreutils` |
 | *"Homebrew not found"* | `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"` |
-| `check-certs` Befehl nicht gefunden | `source ~/.zshrc` (macOS) oder `source ~/.bashrc` (Linux) ausführen |
+| `check-certs` Befehl nicht gefunden | macOS: Symlink prüfen: `ls -la /usr/local/bin/check-certs`. Linux: `source ~/.bashrc` ausführen oder neues Terminal öffnen. |
 
 Für weiterführende Hilfe und variantenspezifische Probleme siehe [docs/troubleshooting.md](docs/troubleshooting.md).
 

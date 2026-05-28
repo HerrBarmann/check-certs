@@ -280,7 +280,7 @@ All functions defined in `check-certs.sh` in order of definition:
 
 | Function | Scope | Description |
 |---|---|---|
-| `configure_wrapper` | Library | Load `check-certs.conf`, apply defaults, reset counters. Must be first call after sourcing. |
+| `configure_wrapper` | Library | Load `check-certs.conf` from the platform config directory (`~/.config/check-certs/` on macOS, script dir on Linux), apply defaults, reset counters. Must be first call after sourcing. |
 | `_state_file key` | Library (private) | Returns the filesystem path for a host's state file. Handles hostname sanitisation. |
 | `state_init` | Library | Creates `$STATE_FILE` directory; runs `state_migrate` if a flat file is detected. |
 | `state_get key` | Library | Returns stored value or empty string. No-op if `STATE_FILE` is empty. |
@@ -441,6 +441,7 @@ These are called for every result, not just notifiable ones. Override them **aft
 - `servers.conf` is **never overwritten** by the installer on reinstall.
 - `check-certs.conf` is backed up to `check-certs.conf.bak` before being overwritten.
 - State directories are created with `mkdir -p`, never `touch`. (This changed in 2.5.0 when the state engine moved from flat files to directories.)
+- On macOS, scripts install to `/usr/local/lib/check-certs/`, config and `servers.conf` to `~/.config/check-certs/`, and a symlink is created at `/usr/local/bin/check-certs`. On Linux, everything goes to `/opt/check-certs/` with a symlink in `/usr/local/bin/`.
 - On macOS, variants use launchd plists with hardcoded placeholder strings (`SCRIPT_PATH_PLACEHOLDER`, `HOUR_PLACEHOLDER`, `MINUTE_PLACEHOLDER`, `LOGDIR_PLACEHOLDER`) that `_install_plist` replaces with `sed` at install time.
 - The `_install_derived_plist` function was removed when the ntfy variant got its own dedicated plist. All variants now use `_install_plist` directly.
 

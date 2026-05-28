@@ -107,9 +107,9 @@ configure_wrapper
 configure_wrapper
 ```
 
-Loads `check-certs.conf` from the same directory as `check-certs.sh`, fills
-in any unset variables from built-in defaults, and resets all counters to
-zero. Must be the first call after sourcing the library.
+Loads `check-certs.conf` from the platform config directory (`~/.config/check-certs/` on macOS,
+script directory on Linux), fills in any unset variables from built-in defaults, and resets
+all counters to zero. Must be the first call after sourcing the library.
 
 ---
 
@@ -225,9 +225,15 @@ full table.
 ### Event hooks
 
 These functions are called by `run_server_loop` for every certificate result,
-including results that do not warrant a notification. The library installs
-no-op defaults before `install_escalation_hooks` is called, and escalation
-wrappers after.
+including results that do not warrant a notification. The library defines
+terminal table printing defaults at library level; `install_escalation_hooks`
+replaces them with escalation-aware versions.
+
+> **Important:** before `install_escalation_hooks` is called, these hooks are
+> bound to the terminal table printing functions. A wrapper that calls
+> `run_server_loop` without first calling `install_escalation_hooks` will
+> produce terminal table rows on stdout — not silence. Always call
+> `install_escalation_hooks` before `run_server_loop`.
 
 Override them when you need to act on events the delivery hooks don't cover —
 for example, to log every server on every run regardless of state.

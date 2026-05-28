@@ -43,7 +43,7 @@
 | ----- | -------- |
 | *"Homebrew not found"* | Install Homebrew: `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"` |
 | *"gdate: command not found"* | macOS only — install coreutils: `brew install coreutils` |
-| `check-certs` command not found after install | The alias has not been loaded yet. Run `source ~/.zshrc` (macOS/zsh), `source ~/.bashrc` (Linux/bash), or open a new terminal. |
+| `check-certs` command not found after install | On macOS the installer creates a symlink at `/usr/local/bin/check-certs` — verify it exists: `ls -la /usr/local/bin/check-certs`. On Linux, run `source ~/.bashrc` or open a new terminal to pick up the alias. |
 | Installer says "must be run with sudo" | Linux installation requires root to write to `/opt/check-certs` and `/var/lib/check-certs`. Run `sudo ./install/install.sh`. |
 | Re-running the installer overwrote my settings | `servers.conf` is never overwritten. `check-certs.conf` is backed up to `check-certs.conf.bak` before being overwritten — your old settings are in that file. |
 | State directory is missing after install | The installer creates state directories with `mkdir -p`. If they are absent, run `state_init` by executing any automation variant once, or create them manually: `mkdir -p /var/lib/check-certs/state-mail` etc. |
@@ -123,7 +123,7 @@ State is stored as small per-host files in a directory (e.g. `/var/lib/check-cer
 | ----- | -------- |
 | *"gdate: command not found"* | `brew install coreutils` |
 | *"Homebrew not found"* | `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"` |
-| `check-certs` command not found | Run `source ~/.zshrc` or open a new terminal window. |
+| `check-certs` command not found | Verify the symlink exists: `ls -la /usr/local/bin/check-certs`. If missing, re-run the installer or create it manually: `sudo ln -s /usr/local/lib/check-certs/check-certs.sh /usr/local/bin/check-certs` |
 | Output has broken box-drawing characters | Your terminal does not support UTF-8. Set `LANG=en_US.UTF-8` or switch to a terminal that does (Terminal.app, iTerm2). |
 | Date parsing fails with "Could not parse expiry date" | If openssl outputs a date in an unexpected format, `gdate` can't parse it. Ensure `gdate` is from a recent version of coreutils: `brew upgrade coreutils`. |
 
@@ -135,10 +135,10 @@ State is stored as small per-host files in a directory (e.g. `/var/lib/check-cer
 | ----- | -------- |
 | No notifications appear | System Settings → Notifications → terminal-notifier → enable. If `terminal-notifier` is not listed, run the script once from the terminal to trigger a permission prompt. |
 | `terminal-notifier: command not found` | `brew install terminal-notifier` |
-| Notifications appear but clicking "Show" opens nothing | Verify `check-certs.sh` is at `~/scripts/check-certs/check-certs.sh` and is executable: `chmod +x ~/scripts/check-certs/check-certs.sh` |
+| Notifications appear but clicking "Show" opens nothing | Verify `check-certs.sh` is at `/usr/local/lib/check-certs/check-certs.sh` and is executable: `chmod +x /usr/local/lib/check-certs/check-certs.sh` |
 | launchd job not running on schedule | `launchctl list \| grep check-certs` — if the job is absent, reload it: `launchctl load ~/Library/LaunchAgents/com.check-certs.notify.plist` |
 | launchd job loaded but never fires | Check the log file for errors: `cat ~/Library/Logs/check-certs/check-certs-notify.log`. A common cause is the script path in the plist being wrong after moving files. |
-| Mac was asleep at the scheduled run time | launchd does not catch up missed jobs. Run manually: `~/scripts/check-certs/check-certs-notify.sh` |
+| Mac was asleep at the scheduled run time | launchd does not catch up missed jobs. Run manually: `/usr/local/lib/check-certs/check-certs-notify.sh` |
 | Notifications stopped after macOS upgrade | Re-grant notification permission: System Settings → Notifications → terminal-notifier → allow. |
 
 ---
@@ -152,7 +152,7 @@ State is stored as small per-host files in a directory (e.g. `/var/lib/check-cer
 | Error | Solution |
 | ----- | -------- |
 | No email received | Verify `MAIL_TO` is set correctly in `check-certs.conf`. Check the log file for delivery errors. |
-| Same alert every day | State may be unwritable. Check permissions: `ls -la /var/lib/check-certs/` (Linux) or `ls -la "$HOME/Library/Application Support/check-certs/"` (macOS). Fix: `chown -R $(whoami) /var/lib/check-certs/`. Or reset: `check-certs --clear-state`. |
+| Same alert every day | State may be unwritable. Check permissions: `ls -la /var/lib/check-certs/` (Linux) or `ls -la "$HOME/Library/Application Support/check-certs/"` (macOS). Fix with `chown -R $(whoami) /var/lib/check-certs/` or equivalent. Or reset: `check-certs --clear-state`. |
 | Alert received once, then silence | This is correct — check-certs only notifies on status changes. A CRITICAL cert that stays CRITICAL only sends daily reminders (CRITICAL threshold), not a notification on every run. |
 | Cron/launchd job not running | Linux: `grep cron /var/log/syslog \| grep check-certs`. macOS: `launchctl list \| grep check-certs`. Check log file for errors. |
 | `MAIL_TO appears to be a placeholder` | Set `MAIL_TO` to a real email address in `check-certs.conf`. |
