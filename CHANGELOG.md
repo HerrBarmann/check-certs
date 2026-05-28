@@ -8,7 +8,7 @@ All notable changes to check-certs are documented here.
 
 ### Bug fix
 
-**macOS installer failed with "Permission denied" on `/usr/local/lib`.** The installer ran all directory creation and file copy operations as the current user. On macOS, `/usr/local/lib/` and `/usr/local/bin/` require elevated privileges. A `$SUDO` variable is now set to `sudo` on macOS and empty on Linux (where the installer is already run with `sudo ./install.sh`). The three operations that write to system paths — `mkdir -p "$TARGET_DIR"`, `cp` and `chmod` in `copy_script`, and the `ln -s` symlink creation — now prefix with `$SUDO`. User-owned paths (`~/.config/check-certs/`, `~/Library/`) are unaffected.
+**macOS installer failed with "Permission denied" on `/usr/local/lib`.** On macOS, Homebrew refuses to run as root, so the installer must run as the regular user. A `$SUDO` variable (`sudo` on macOS, empty on Linux) is used exclusively for the five commands that write to system paths: `mkdir -p /usr/local/lib/check-certs`, `cp` and `chmod` in `copy_script`, and the `ln -s` and `rm` for the `/usr/local/bin/check-certs` symlink. All other operations (Homebrew, user directories, launchd) run as the user without elevation.
 
 ---
 
