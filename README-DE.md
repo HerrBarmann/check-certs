@@ -65,7 +65,7 @@ Sechs optionale Automatisierungsvarianten ergänzen es um Hintergrundüberwachun
 **Automatisch** – installiert `check-certs.sh`, richtet den Befehl als Symlink in `/usr/local/bin/` ein und konfiguriert optional eine oder mehrere Automatisierungsvarianten (Benachrichtigungen, E-Mail, Webhook, Teams, Pushover, ntfy) via launchd:
 
 ```bash
-chmod +x install/install.sh && sudo ./install/install.sh
+chmod +x install/install.sh && ./install/install.sh
 ```
 
 **Manuell** – nur Terminal-Tabelle:
