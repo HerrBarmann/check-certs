@@ -907,9 +907,7 @@ fi
 
 echo -e "  Then use:"
 echo -e "    ${BOLD}check-certs${NC}                   Check all servers"
-echo -e "    ${BOLD}check-certs <host>:<port>${NC}      Check a single server"
-echo -e "    ${BOLD}check-certs --list${NC}             List configured servers"
-echo -e "    ${BOLD}check-certs --clear-state${NC}      Reset state (force fresh notifications)"
+echo -e "    ${BOLD}check-certs --help${NC}             Show all available commands"
 echo ""
 echo "  Edit server list:"
 echo -e "    ${BOLD}$CONF_TARGET_DIR/servers.conf${NC}"
