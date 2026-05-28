@@ -23,8 +23,11 @@ No mail server required. Runs on any platform with `curl`.
 ### Automatic (macOS and Debian/Ubuntu)
 
 ```bash
-chmod +x install/install.sh
-sudo ./install/install.sh   # macOS and Linux
+chmod +x install/install.sh   # macOS
+./install/install.sh
+
+chmod +x install/install.sh   # Linux
+sudo ./install/install.sh
 ```
 
 Select **Webhook** when prompted. The installer writes `check-certs.conf`, copies the script and sets up a launchd job (macOS) or cron job (Linux).

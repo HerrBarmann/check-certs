@@ -30,7 +30,7 @@ Run the macOS installer and select **1) Notifications** when prompted (option nu
 
 ```bash
 chmod +x install/install.sh
-sudo ./install/install.sh
+./install/install.sh
 ```
 
 The installer prompts for thresholds and run time, writes `check-certs.conf`, copies the scripts and sets up the launchd job.
