@@ -4,6 +4,48 @@ All notable changes to check-certs are documented here.
 
 ---
 
+## 2.7.2 — 2026-05-28
+
+### Bug fix
+
+**macOS installer failed with "Permission denied" on `/usr/local/lib`.** The installer ran all directory creation and file copy operations as the current user. On macOS, `/usr/local/lib/` and `/usr/local/bin/` require elevated privileges. A `$SUDO` variable is now set to `sudo` on macOS and empty on Linux (where the installer is already run with `sudo ./install.sh`). The three operations that write to system paths — `mkdir -p "$TARGET_DIR"`, `cp` and `chmod` in `copy_script`, and the `ln -s` symlink creation — now prefix with `$SUDO`. User-owned paths (`~/.config/check-certs/`, `~/Library/`) are unaffected.
+
+---
+
+## 2.7.1 — 2026-05-28
+
+### Bug fix
+
+**Terminal-only install left `~/.config/check-certs/` empty on macOS.** When the user selected "Terminal only" during installation, `INSTALL_NONE=true` caused the entire `check-certs.conf` write block to be skipped. The directory was created and `servers.conf` was copied, but no `check-certs.conf` was written — leaving the config directory empty and the tool falling back to built-in defaults with no obvious place to edit settings.
+
+`check-certs.conf` is now always written regardless of which variants are selected. Terminal-only installs get the base thresholds block; automation installs additionally get their variant-specific settings. Threshold variables use `${VAR:-default}` so a terminal-only install (which skips the threshold prompts) still produces a valid config file.
+
+---
+
+## 2.7.0 — 2026-05-27
+
+### Breaking change — macOS install paths
+
+The macOS installer now uses platform-conventional paths instead of `~/scripts/check-certs/`.
+
+| What | Old (≤ 2.6.x) | New (2.7.0) |
+|---|---|---|
+| Scripts | `~/scripts/check-certs/` | `/usr/local/lib/check-certs/` |
+| Command | shell alias in `.zshrc` | symlink at `/usr/local/bin/check-certs` |
+| Config + servers.conf | `~/scripts/check-certs/` | `~/.config/check-certs/` |
+| State | `~/Library/Application Support/check-certs/` | unchanged |
+| Logs | `~/Library/Logs/check-certs/` | unchanged |
+
+Linux paths are unchanged (`/opt/check-certs/` with a symlink at `/usr/local/bin/check-certs`).
+
+**For existing macOS installations:** re-running `install.sh` will install to the new locations. Your `servers.conf` will not be overwritten if one already exists at `~/.config/check-certs/servers.conf`. Copy it there manually first if upgrading: `mkdir -p ~/.config/check-certs && cp ~/scripts/check-certs/servers.conf ~/.config/check-certs/`.
+
+**Why:** `~/scripts/` is a personal convention for one-off scripts. A tool that installs launchd jobs, manages application state, and writes logs deserves proper platform locations. Scripts in `/usr/local/lib/`, config under `~/.config/`, command on `$PATH` via symlink — no alias, no shell reload required after install, and the command works in launchd, cron, CI, and any shell.
+
+`check-certs.sh` detects the platform at startup via `uname` and uses `~/.config/check-certs/` on macOS, or the script directory on Linux. No fallback, no search — one definitive location per platform.
+
+---
+
 ## 2.6.2 — 2026-05-27
 
 ### Bug fix

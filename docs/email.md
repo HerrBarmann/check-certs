@@ -34,7 +34,7 @@ Runs daily via cron (Linux) or launchd (macOS) and sends email reports for expir
 
 ## How it works
 
-Both variants share the same logic from `check-certs.sh`:
+The email variant shares the same core logic from `check-certs.sh`:
 
 - All servers are checked **in parallel** including full chain verification
 - A report is assembled and sent **only when there is something to report**
@@ -85,15 +85,29 @@ If the mail transport configuration file already exists (`/etc/postfix/main.cf` 
 
 ## Manual installation
 
-Both transports use the same script. Copy the files first, then follow the section for your chosen transport:
+Both transports use the same script. Copy the files first, then follow the section for your chosen transport.
+
+**Linux:**
 
 ```bash
-mkdir -p /opt/check-certs /var/lib/check-certs
-cp src/check-certs.sh /opt/check-certs/
-cp src/check-certs-mail.sh /opt/check-certs/
-cp config/servers.conf /opt/check-certs/
-chmod +x /opt/check-certs/check-certs.sh /opt/check-certs/check-certs-mail.sh
-touch /var/lib/check-certs/state
+sudo mkdir -p /opt/check-certs
+sudo cp src/check-certs.sh /opt/check-certs/
+sudo cp src/check-certs-mail.sh /opt/check-certs/
+sudo cp config/servers.conf /opt/check-certs/
+sudo chmod +x /opt/check-certs/check-certs.sh /opt/check-certs/check-certs-mail.sh
+mkdir -p /var/lib/check-certs/state-mail
+```
+
+**macOS:**
+
+```bash
+sudo mkdir -p /usr/local/lib/check-certs
+sudo cp src/check-certs.sh /usr/local/lib/check-certs/
+sudo cp src/check-certs-mail.sh /usr/local/lib/check-certs/
+sudo chmod +x /usr/local/lib/check-certs/check-certs.sh /usr/local/lib/check-certs/check-certs-mail.sh
+mkdir -p ~/.config/check-certs
+cp config/servers.conf ~/.config/check-certs/
+mkdir -p "$HOME/Library/Application Support/check-certs/state-mail"
 ```
 
 ### Postfix
@@ -157,7 +171,7 @@ Or on macOS, set up the launchd job:
 
 ```bash
 sed \
-    -e "s|SCRIPT_PATH_PLACEHOLDER|$HOME/scripts/check-certs/check-certs-mail.sh|g" \
+    -e "s|SCRIPT_PATH_PLACEHOLDER|/usr/local/lib/check-certs/check-certs-mail.sh|g" \
     -e "s|HOUR_PLACEHOLDER|7|g" \
     -e "s|MINUTE_PLACEHOLDER|0|g" \
     -e "s|LOGDIR_PLACEHOLDER|$HOME/Library/Logs/check-certs|g" \
@@ -246,7 +260,8 @@ Or on macOS, set up the launchd job (same command as above).
 **Edit settings:** All configuration lives in `check-certs.conf`:
 
 ```bash
-nano /opt/check-certs/check-certs.conf
+nano /opt/check-certs/check-certs.conf  # Linux
+nano ~/.config/check-certs/check-certs.conf  # macOS
 ```
 
 | Setting | Description |
@@ -265,14 +280,13 @@ nano /opt/check-certs/check-certs.conf
 check-certs --clear-state
 ```
 
-To clear a single server's state entry manually:
+To clear state for a single variant:
 
 ```bash
 # Linux
-sed -i '/hostname\.example\.com/d' /var/lib/check-certs/state-mail
+check-certs --clear-state --state-dir /var/lib/check-certs/state-mail
 # macOS
-sed -i '' '/hostname\.example\.com/d' \
-    "$HOME/Library/Application Support/check-certs/state-mail"
+check-certs --clear-state --state-dir "$HOME/Library/Application Support/check-certs/state-mail"
 ```
 
 **Change cron job time:** Open the crontab and update the entry to your preferred time:

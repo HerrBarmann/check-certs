@@ -34,24 +34,21 @@ Select **Webhook** when prompted. The installer writes `check-certs.conf`, copie
 
 ### Manual
 
+**Linux:**
+
 ```bash
-# Copy files
-mkdir -p /opt/check-certs
-cp src/check-certs.sh /opt/check-certs/
-cp src/check-certs-webhook.sh /opt/check-certs/
-cp config/servers.conf /opt/check-certs/
-cp config/check-certs.conf /opt/check-certs/
-chmod +x /opt/check-certs/check-certs.sh /opt/check-certs/check-certs-webhook.sh
-
-# Then edit check-certs.conf and set WEBHOOK_URL (it is commented out by default)
-nano /opt/check-certs/check-certs.conf
-
-# Create state directory
-mkdir -p /var/lib/check-certs
-touch /var/lib/check-certs/state
+sudo mkdir -p /opt/check-certs
+sudo cp src/check-certs.sh /opt/check-certs/
+sudo cp src/check-certs-webhook.sh /opt/check-certs/
+sudo cp config/servers.conf /opt/check-certs/
+sudo cp config/check-certs.conf /opt/check-certs/
+sudo chmod +x /opt/check-certs/check-certs.sh /opt/check-certs/check-certs-webhook.sh
+mkdir -p /var/lib/check-certs/state-webhook
+# Set WEBHOOK_URL in the config
+sudo nano /opt/check-certs/check-certs.conf
 ```
 
-Set up the cron job (Linux) or launchd job (macOS – see [docs/macos-notify.md](macos-notify.md) for the launchd template approach):
+Set up the cron job:
 
 ```bash
 crontab -e
@@ -61,6 +58,32 @@ crontab -e
 0 7 * * * /opt/check-certs/check-certs-webhook.sh
 ```
 
+**macOS:**
+
+```bash
+sudo mkdir -p /usr/local/lib/check-certs
+sudo cp src/check-certs.sh /usr/local/lib/check-certs/
+sudo cp src/check-certs-webhook.sh /usr/local/lib/check-certs/
+sudo chmod +x /usr/local/lib/check-certs/check-certs.sh /usr/local/lib/check-certs/check-certs-webhook.sh
+mkdir -p ~/.config/check-certs
+cp config/servers.conf config/check-certs.conf ~/.config/check-certs/
+# Set WEBHOOK_URL in the config
+nano ~/.config/check-certs/check-certs.conf
+```
+
+Set up the launchd job:
+
+```bash
+sed \
+    -e "s|SCRIPT_PATH_PLACEHOLDER|/usr/local/lib/check-certs/check-certs-webhook.sh|g" \
+    -e "s|HOUR_PLACEHOLDER|7|g" \
+    -e "s|MINUTE_PLACEHOLDER|0|g" \
+    -e "s|LOGDIR_PLACEHOLDER|$HOME/Library/Logs/check-certs|g" \
+    install/com.check-certs.webhook.plist \
+    > ~/Library/LaunchAgents/com.check-certs.webhook.plist
+launchctl load ~/Library/LaunchAgents/com.check-certs.webhook.plist
+```
+
 ---
 
 ## Configuration
@@ -68,7 +91,8 @@ crontab -e
 All webhook settings go in `check-certs.conf`:
 
 ```bash
-nano /opt/check-certs/check-certs.conf
+nano /opt/check-certs/check-certs.conf        # Linux
+nano ~/.config/check-certs/check-certs.conf   # macOS
 ```
 
 | Setting | Required | Description |
@@ -188,7 +212,7 @@ WEBHOOK_AUTH_VALUE="<your-api-key>"
 | `curl is required but not installed` | `apt install curl` or `brew install curl` |
 | `webhook POST returned HTTP 4xx` | Check URL and authentication settings |
 | `webhook POST returned HTTP 5xx` | Endpoint is unavailable; check-certs will retry once |
-| No events received | Run manually and check output: `/opt/check-certs/check-certs-webhook.sh` |
+| No events received | Run manually and check output: `/opt/check-certs/check-certs-webhook.sh` (Linux) or `/usr/local/lib/check-certs/check-certs-webhook.sh` (macOS) |
 | Only summary received, no findings | All certificates are OK and no state changes occurred |
 
 For general certificate checking issues see [troubleshooting.md](troubleshooting.md).

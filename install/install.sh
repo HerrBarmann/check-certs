@@ -48,9 +48,20 @@ SRC_DIR="$(cd "$INSTALL_DIR/../src" && pwd)"
 CONF_DIR="$(cd "$INSTALL_DIR/../config" && pwd)"
 CONF_NAME="servers.conf"
 
+# On macOS the installer runs as the user; system directories
+# (/usr/local/lib, /usr/local/bin) require sudo.
+# On Linux the installer is run with sudo already, so SUDO is empty.
+if [ "$PLATFORM" = "macos" ]; then
+    SUDO="sudo"
+else
+    SUDO=""
+fi
+
 # Platform-specific defaults
 if [ "$PLATFORM" = "macos" ]; then
-    TARGET_DIR="$HOME/scripts/check-certs"
+    TARGET_DIR="/usr/local/lib/check-certs"         # scripts co-located here
+    CONF_TARGET_DIR="$HOME/.config/check-certs"      # config and servers.conf
+    BIN_DIR="/usr/local/bin"                          # check-certs symlink
     LOG_DIR="$HOME/Library/Logs/check-certs"
     STATE_DIR="$HOME/Library/Application Support/check-certs"
     NOTIFY_PLIST_NAME="com.check-certs.notify.plist"
@@ -63,7 +74,9 @@ if [ "$PLATFORM" = "macos" ]; then
     NTFY_PLIST_TARGET="$HOME/Library/LaunchAgents/$NTFY_PLIST_NAME"
     FQDN="$(hostname -f 2>/dev/null || hostname)"
 else
-    TARGET_DIR="/opt/check-certs"
+    TARGET_DIR="/opt/check-certs"         # scripts and config co-located
+    CONF_TARGET_DIR="/opt/check-certs"     # same as TARGET_DIR on Linux
+    BIN_DIR="/usr/local/bin"
     LOG_DIR="/var/log/check-certs"
     STATE_DIR="/var/lib/check-certs"
     CRON_USER="${SUDO_USER:-$USER}"
@@ -97,17 +110,17 @@ require_file() {
 
 copy_script() {
     local name="$1"
-    cp "$SRC_DIR/$name" "$TARGET_DIR/$name"
-    chmod +x "$TARGET_DIR/$name"
+    $SUDO cp "$SRC_DIR/$name" "$TARGET_DIR/$name"
+    $SUDO chmod +x "$TARGET_DIR/$name"
     echo -e "${GREEN}✓ $name installed${NC}"
 }
 
 copy_conf() {
-    if [ -f "$TARGET_DIR/servers.conf" ]; then
+    if [ -f "$CONF_TARGET_DIR/servers.conf" ]; then
         echo -e "${YELLOW}⚠ 'servers.conf' already exists – will not be overwritten.${NC}"
     else
-        cp "$CONF_DIR/servers.conf" "$TARGET_DIR/servers.conf"
-        echo -e "${GREEN}✓ servers.conf copied${NC}"
+        cp "$CONF_DIR/servers.conf" "$CONF_TARGET_DIR/servers.conf"
+        echo -e "${GREEN}✓ servers.conf copied to $CONF_TARGET_DIR/${NC}"
     fi
 }
 
@@ -168,7 +181,7 @@ _prompt_smtp() {
     if [ -n "$SMTP_USER" ]; then
         read -r -s -p "  SMTP password: " SMTP_PASS; echo ""
         while [ -z "$SMTP_PASS" ]; do
-            echo -e "  ${RED}Please enter a password.${NC}"
+        echo -e "  ${RED}Please enter a password.${NC}"
             read -r -s -p "  SMTP password: " SMTP_PASS; echo ""
         done
     fi
@@ -548,7 +561,7 @@ smtp_sasl_auth_enable = yes
 smtp_sasl_password_maps = hash:/etc/postfix/sasl_passwd
 smtp_sasl_security_options = noanonymous
 EOF
-            echo "[${SMTP_HOST}]:${SMTP_PORT} ${SMTP_USER}:${SMTP_PASS}" \
+        echo "[${SMTP_HOST}]:${SMTP_PORT} ${SMTP_USER}:${SMTP_PASS}" \
                 > /etc/postfix/sasl_passwd
             postmap /etc/postfix/sasl_passwd
             chmod 600 /etc/postfix/sasl_passwd /etc/postfix/sasl_passwd.db
@@ -570,14 +583,14 @@ if [ "$PLATFORM" = "linux" ] && [ "$INSTALL_MAIL" = true ] && \
         echo "  Writing /etc/ssmtp/ssmtp.conf..."
         mkdir -p /etc/ssmtp
         {
-            echo "root=${MAIL_FROM}"
-            echo "mailhub=${SMTP_HOST}:${SMTP_PORT}"
-            [ -n "$SMTP_USER" ] && echo "AuthUser=${SMTP_USER}"
-            [ -n "$SMTP_PASS" ] && echo "AuthPass=${SMTP_PASS}"
-            echo "UseTLS=YES"
-            echo "UseSTARTTLS=YES"
-            echo "hostname=${FQDN}"
-            echo "FromLineOverride=YES"
+        echo "root=${MAIL_FROM}"
+        echo "mailhub=${SMTP_HOST}:${SMTP_PORT}"
+        [ -n "$SMTP_USER" ] && echo "AuthUser=${SMTP_USER}"
+        [ -n "$SMTP_PASS" ] && echo "AuthPass=${SMTP_PASS}"
+        echo "UseTLS=YES"
+        echo "UseSTARTTLS=YES"
+        echo "hostname=${FQDN}"
+        echo "FromLineOverride=YES"
         } > /etc/ssmtp/ssmtp.conf
         chmod 640 /etc/ssmtp/ssmtp.conf
         echo -e "${GREEN}✓ ssmtp configured${NC}"
@@ -585,7 +598,8 @@ if [ "$PLATFORM" = "linux" ] && [ "$INSTALL_MAIL" = true ] && \
 fi
 
 # ── Create directories ────────────────────────────────────────
-mkdir -p "$TARGET_DIR"
+$SUDO mkdir -p "$TARGET_DIR"
+mkdir -p "$CONF_TARGET_DIR"
 if [ "$PLATFORM" = "macos" ]; then
     mkdir -p "$LOG_DIR" "$STATE_DIR" "$HOME/Library/LaunchAgents"
 else
@@ -599,97 +613,90 @@ echo -e "  ${BOLD}Installing check-certs${NC}"
 copy_script "check-certs.sh"
 copy_conf
 
-# Alias
-ALIAS_LINE="alias check-certs=\"$TARGET_DIR/check-certs.sh\""
-declare -a RC_CANDIDATES=()
-if [ "$PLATFORM" = "macos" ]; then
-    RC_CANDIDATES=("$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile")
-else
-    RC_CANDIDATES=("/root/.bashrc")
-    [ "$CRON_USER" != "root" ] && RC_CANDIDATES+=("/home/$CRON_USER/.bashrc")
+# Symlink: /usr/local/bin/check-certs → TARGET_DIR/check-certs.sh
+# This puts check-certs on $PATH for all users and all shells without
+# requiring a shell alias or sourcing a rc file.
+ALIAS_RC_FILE=""  # kept for summary section compatibility
+if [ -L "$BIN_DIR/check-certs" ] || [ -f "$BIN_DIR/check-certs" ]; then
+    $SUDO rm -f "$BIN_DIR/check-certs"
+    echo -e "${YELLOW}⚠ Existing $BIN_DIR/check-certs removed${NC}"
 fi
-ALIAS_RC_FILE=""
-for config in "${RC_CANDIDATES[@]}"; do
-    [ -f "$config" ] || continue
-    if grep -q "alias check-certs" "$config"; then
-        echo -e "${YELLOW}⚠ Alias already present in $(basename "$config") – skipped${NC}"
-    else
-        { echo ""; echo "# check-certs"; echo "$ALIAS_LINE"; } >> "$config"
-        echo -e "${GREEN}✓ Alias added to $(basename "$config")${NC}"
-        [ -z "$ALIAS_RC_FILE" ] && ALIAS_RC_FILE="$config"
-    fi
-done
+$SUDO ln -s "$TARGET_DIR/check-certs.sh" "$BIN_DIR/check-certs"
+echo -e "${GREEN}✓ Symlink created: $BIN_DIR/check-certs${NC}"
 
 # ── Write check-certs.conf ────────────────────────────────────
-if [ -f "$TARGET_DIR/check-certs.conf" ]; then
-    cp "$TARGET_DIR/check-certs.conf" "$TARGET_DIR/check-certs.conf.bak"
-    echo -e "${YELLOW}⚠ Existing check-certs.conf backed up to check-certs.conf.bak${NC}"
+if [ -f "$CONF_TARGET_DIR/check-certs.conf" ]; then
+    cp "$CONF_TARGET_DIR/check-certs.conf" "$CONF_TARGET_DIR/check-certs.conf.bak"
+    echo -e "${YELLOW}⚠ Existing check-certs.conf backed up to $CONF_TARGET_DIR/check-certs.conf.bak${NC}"
 fi
 
-if [ "$INSTALL_NONE" = false ]; then
-    {
-        echo "# check-certs configuration – generated by installer"
+# Always write check-certs.conf — even for a terminal-only install.
+# Without it, check-certs.sh falls back to built-in defaults but the
+# user has nowhere obvious to edit settings. Terminal-only installs
+# get the base thresholds; automation installs also get their variant
+# settings appended below.
+{
+    echo "# check-certs configuration – generated by installer"
+    echo ""
+    echo "# ── Thresholds ──────────────────────────────────────────"
+    echo "WARN_DAYS=${WARN_DAYS:-15}"
+    echo "CRIT_DAYS=${CRIT_DAYS:-7}"
+    echo "URGENT_DAYS=${URGENT_DAYS:-2}"
+    echo "TIMEOUT=5"
+    echo "MAX_JOBS=10"
+    echo "CA_MAX_LEN=30"
+
+    if [ "$INSTALL_NOTIFY" = true ]; then
         echo ""
-        echo "# ── Thresholds ──────────────────────────────────────────"
-        echo "WARN_DAYS=${WARN_DAYS}"
-        echo "CRIT_DAYS=${CRIT_DAYS}"
-        echo "URGENT_DAYS=${URGENT_DAYS}"
-        echo "TIMEOUT=5"
-        echo "MAX_JOBS=10"
-        echo "CA_MAX_LEN=30"
+        echo "# ── Notification log ────────────────────────────────────"
+        echo "LOG_FILE=\"\$HOME/Library/Logs/check-certs/check-certs-notify.log\""
+    fi
 
-        if [ "$INSTALL_NOTIFY" = true ]; then
-            echo ""
-            echo "# ── Notification log ────────────────────────────────────"
-            echo "LOG_FILE=\"\$HOME/Library/Logs/check-certs/check-certs-notify.log\""
-        fi
+    if [ "$INSTALL_MAIL" = true ]; then
+        echo ""
+        echo "# ── Email settings ──────────────────────────────────────"
+        echo "MAIL_TRANSPORT=${MAIL_TRANSPORT}"
+        echo "MAIL_TO=\"${MAIL_TO}\""
+        echo "MAIL_TO_URGENT=\"${MAIL_TO_URGENT}\""
+        echo "MAIL_FROM=\"${MAIL_FROM}\""
+    fi
 
-        if [ "$INSTALL_MAIL" = true ]; then
-            echo ""
-            echo "# ── Email settings ──────────────────────────────────────"
-            echo "MAIL_TRANSPORT=${MAIL_TRANSPORT}"
-            echo "MAIL_TO=\"${MAIL_TO}\""
-            echo "MAIL_TO_URGENT=\"${MAIL_TO_URGENT}\""
-            echo "MAIL_FROM=\"${MAIL_FROM}\""
-        fi
+    if [ "$INSTALL_WEBHOOK" = true ]; then
+        echo ""
+        echo "# ── Webhook settings ────────────────────────────────────"
+        echo "WEBHOOK_URL=\"${WEBHOOK_URL}\""
+        [ -n "$WEBHOOK_AUTH_HEADER" ] && {
+            echo "WEBHOOK_AUTH_HEADER=\"${WEBHOOK_AUTH_HEADER}\""
+            echo "WEBHOOK_AUTH_VALUE=\"${WEBHOOK_AUTH_VALUE}\""
+        }
+        echo "WEBHOOK_SEND_SUMMARY=${WEBHOOK_SEND_SUMMARY}"
+    fi
 
-        if [ "$INSTALL_WEBHOOK" = true ]; then
-            echo ""
-            echo "# ── Webhook settings ────────────────────────────────────"
-            echo "WEBHOOK_URL=\"${WEBHOOK_URL}\""
-            [ -n "$WEBHOOK_AUTH_HEADER" ] && {
-                echo "WEBHOOK_AUTH_HEADER=\"${WEBHOOK_AUTH_HEADER}\""
-                echo "WEBHOOK_AUTH_VALUE=\"${WEBHOOK_AUTH_VALUE}\""
-            }
-            echo "WEBHOOK_SEND_SUMMARY=${WEBHOOK_SEND_SUMMARY}"
-        fi
+    if [ "$INSTALL_TEAMS" = true ]; then
+        echo ""
+        echo "# ── Teams settings ──────────────────────────────────────"
+        echo "TEAMS_WEBHOOK_URL=\"${TEAMS_WEBHOOK_URL}\""
+    fi
 
-        if [ "$INSTALL_TEAMS" = true ]; then
-            echo ""
-            echo "# ── Teams settings ──────────────────────────────────────"
-            echo "TEAMS_WEBHOOK_URL=\"${TEAMS_WEBHOOK_URL}\""
-        fi
+    if [ "$INSTALL_PUSHOVER" = true ]; then
+        echo ""
+        echo "# ── Pushover settings ───────────────────────────────────"
+        echo "PUSHOVER_APP_TOKEN=\"${PUSHOVER_APP_TOKEN}\""
+        echo "PUSHOVER_USER_KEY=\"${PUSHOVER_USER_KEY}\""
+        [ -n "$PUSHOVER_DEVICE" ] && echo "PUSHOVER_DEVICE=\"${PUSHOVER_DEVICE}\""
+    fi
 
-        if [ "$INSTALL_PUSHOVER" = true ]; then
-            echo ""
-            echo "# ── Pushover settings ───────────────────────────────────"
-            echo "PUSHOVER_APP_TOKEN=\"${PUSHOVER_APP_TOKEN}\""
-            echo "PUSHOVER_USER_KEY=\"${PUSHOVER_USER_KEY}\""
-            [ -n "$PUSHOVER_DEVICE" ] && echo "PUSHOVER_DEVICE=\"${PUSHOVER_DEVICE}\""
-        fi
-
-        if [ "$INSTALL_NTFY" = true ]; then
-            echo ""
-            echo "# ── ntfy settings ───────────────────────────────────────"
-            echo "NTFY_URL=\"${NTFY_URL}\""
-            echo "NTFY_TOPIC=\"${NTFY_TOPIC}\""
-            [ -n "$NTFY_TOKEN" ] && echo "NTFY_TOKEN=\"${NTFY_TOKEN}\""
-            [ -n "$NTFY_USER"  ] && echo "NTFY_USER=\"${NTFY_USER}\""
-            [ -n "$NTFY_PASS"  ] && echo "NTFY_PASS=\"${NTFY_PASS}\""
-        fi
-    } > "$TARGET_DIR/check-certs.conf"
-    echo -e "${GREEN}✓ check-certs.conf written${NC}"
-fi
+    if [ "$INSTALL_NTFY" = true ]; then
+        echo ""
+        echo "# ── ntfy settings ───────────────────────────────────────"
+        echo "NTFY_URL=\"${NTFY_URL}\""
+        echo "NTFY_TOPIC=\"${NTFY_TOPIC}\""
+        [ -n "$NTFY_TOKEN" ] && echo "NTFY_TOKEN=\"${NTFY_TOKEN}\""
+        [ -n "$NTFY_USER"  ] && echo "NTFY_USER=\"${NTFY_USER}\""
+        [ -n "$NTFY_PASS"  ] && echo "NTFY_PASS=\"${NTFY_PASS}\""
+    fi
+} > "$CONF_TARGET_DIR/check-certs.conf"
+echo -e "${GREEN}✓ check-certs.conf written to $CONF_TARGET_DIR/${NC}"
 
 # ── Create state directories ──────────────────────────────────
 # Each automation variant stores per-host state files in its own
@@ -855,8 +862,10 @@ fi
 echo ""
 echo -e "${GREEN}${BOLD}✅ Installation complete!${NC}"
 echo ""
-echo -e "  Installed to:  ${BOLD}$TARGET_DIR${NC}"
-echo -e "  Server list:   ${BOLD}$TARGET_DIR/servers.conf${NC}"
+echo -e "  Scripts:       ${BOLD}$TARGET_DIR${NC}"
+echo -e "  Command:       ${BOLD}$BIN_DIR/check-certs${NC}"
+echo -e "  Config:        ${BOLD}$CONF_TARGET_DIR/check-certs.conf${NC}"
+echo -e "  Server list:   ${BOLD}$CONF_TARGET_DIR/servers.conf${NC}"
 [ "$INSTALL_NONE" = false ] && \
     echo -e "  Thresholds:    ${BOLD}warning >${WARN_DAYS}d  critical >${CRIT_DAYS}d  urgent >${URGENT_DAYS}d${NC}"
 [ "$INSTALL_NOTIFY"   = true ] && echo -e "  Notifications: daily at ${NOTIFY_HOUR}:$(printf '%02d' "$NOTIFY_MINUTE")"
@@ -875,6 +884,7 @@ echo -e "  Server list:   ${BOLD}$TARGET_DIR/servers.conf${NC}"
     echo -e "  ntfy:          daily at ${NTFY_HOUR}:$(printf '%02d' "$NTFY_MINUTE")  (${NTFY_URL}/${NTFY_TOPIC})"
 echo ""
 
+# No shell reload needed — check-certs is now on PATH via symlink
 if [ -n "$ALIAS_RC_FILE" ]; then
     echo "  Reload your shell or run:"
     echo -e "    ${BOLD}source $ALIAS_RC_FILE${NC}"
@@ -888,7 +898,7 @@ echo -e "    ${BOLD}check-certs --list${NC}             List configured servers"
 echo -e "    ${BOLD}check-certs --clear-state${NC}      Reset state (force fresh notifications)"
 echo ""
 echo "  Edit server list:"
-echo -e "    ${BOLD}$TARGET_DIR/servers.conf${NC}"
+echo -e "    ${BOLD}$CONF_TARGET_DIR/servers.conf${NC}"
 echo ""
 
 if [ "$INSTALL_NONE" = false ] && [ "$PLATFORM" = "linux" ]; then

@@ -49,26 +49,15 @@ For sysadmins already running a self-hosted stack, ntfy slots in naturally — i
 
 ### Automatic (macOS and Debian/Ubuntu)
 
-The unified installer supports ntfy if you add the script manually after running it — or install it directly:
+Run the unified installer and select **ntfy** when prompted:
 
 ```bash
-# Copy the script alongside check-certs.sh
-cp src/check-certs-ntfy.sh /opt/check-certs/
-chmod +x /opt/check-certs/check-certs-ntfy.sh
-
-# Edit check-certs.conf and add your ntfy settings (see Configuration below)
-nano /opt/check-certs/check-certs.conf
-
-# Create the state directory
-mkdir -p /var/lib/check-certs/state-ntfy
-
-# Add a cron job (Linux – daily at 07:00)
-crontab -e
+chmod +x install/install.sh
+./install/install.sh          # macOS
+sudo ./install/install.sh     # Linux
 ```
 
-```
-0 7 * * * /opt/check-certs/check-certs-ntfy.sh
-```
+The installer installs the script, writes `check-certs.conf` with the ntfy settings, creates the state directory, and sets up the launchd job (macOS) or cron job (Linux).
 
 ### macOS launchd
 
@@ -83,7 +72,7 @@ Create `/Library/LaunchAgents/com.check-certs.ntfy.plist`:
     <key>Label</key>        <string>com.check-certs.ntfy</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/YOURUSER/scripts/check-certs/check-certs-ntfy.sh</string>
+        <string>/usr/local/lib/check-certs/check-certs-ntfy.sh</string>
     </array>
     <key>StartCalendarInterval</key>
     <dict><key>Hour</key><integer>7</integer><key>Minute</key><integer>0</integer></dict>
@@ -121,7 +110,8 @@ NTFY_TOPIC="my-cert-alerts-a7f3k9"
 That's all that's required for a public ntfy.sh topic. Test it:
 
 ```bash
-/opt/check-certs/check-certs-ntfy.sh
+/usr/local/lib/check-certs/check-certs-ntfy.sh  # macOS
+/opt/check-certs/check-certs-ntfy.sh             # Linux
 ```
 
 ---
@@ -175,7 +165,7 @@ Expired: May 23 2026 (CA: DigiCert)
 ## Troubleshooting
 
 **No notifications arriving:**
-- Check the log file (`/var/log/check-certs/check-certs-ntfy.log`)
+- Check the log file (`/var/log/check-certs/check-certs-ntfy.log` on Linux, `~/Library/Logs/check-certs/check-certs-ntfy.log` on macOS)
 - Confirm `NTFY_URL` and `NTFY_TOPIC` are set correctly in `check-certs.conf`
 - Test the POST manually: `curl -d "test message" https://ntfy.sh/your-topic`
 - For private topics, verify your token or credentials

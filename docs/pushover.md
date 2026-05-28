@@ -54,12 +54,12 @@ most severe entry is shown first with a `(+N more)` count.
 ```bash
 apt install openssl curl
 
-mkdir -p /opt/check-certs /var/lib/check-certs
-cp src/check-certs.sh /opt/check-certs/
-cp src/check-certs-pushover.sh /opt/check-certs/
-cp config/servers.conf /opt/check-certs/
-chmod +x /opt/check-certs/check-certs.sh /opt/check-certs/check-certs-pushover.sh
-touch /var/lib/check-certs/state
+sudo mkdir -p /opt/check-certs
+sudo cp src/check-certs.sh /opt/check-certs/
+sudo cp src/check-certs-pushover.sh /opt/check-certs/
+sudo cp config/servers.conf /opt/check-certs/
+sudo chmod +x /opt/check-certs/check-certs.sh /opt/check-certs/check-certs-pushover.sh
+mkdir -p /var/lib/check-certs/state-pushover
 ```
 
 Write `check-certs.conf`:
@@ -92,18 +92,20 @@ crontab -e
 ```bash
 brew install openssl coreutils curl
 
-mkdir -p ~/scripts/check-certs
-cp src/check-certs.sh ~/scripts/check-certs/
-cp src/check-certs-pushover.sh ~/scripts/check-certs/
-cp config/servers.conf ~/scripts/check-certs/
-chmod +x ~/scripts/check-certs/check-certs.sh ~/scripts/check-certs/check-certs-pushover.sh
+sudo mkdir -p /usr/local/lib/check-certs
+mkdir -p ~/.config/check-certs
+sudo cp src/check-certs.sh /usr/local/lib/check-certs/
+sudo cp src/check-certs-pushover.sh /usr/local/lib/check-certs/
+mkdir -p ~/.config/check-certs
+cp config/servers.conf ~/.config/check-certs/
+sudo chmod +x /usr/local/lib/check-certs/check-certs.sh /usr/local/lib/check-certs/check-certs-pushover.sh
 mkdir -p "$HOME/Library/Application Support/check-certs"
 ```
 
 Write `check-certs.conf`:
 
 ```bash
-cat > ~/scripts/check-certs/check-certs.conf << 'CONF'
+cat > ~/.config/check-certs/check-certs.conf << 'CONF'
 WARN_DAYS=15
 CRIT_DAYS=7
 URGENT_DAYS=2
@@ -120,7 +122,7 @@ Set up the launchd job using the dedicated Pushover plist:
 
 ```bash
 sed \
-    -e "s|SCRIPT_PATH_PLACEHOLDER|$HOME/scripts/check-certs/check-certs-pushover.sh|g" \
+    -e "s|SCRIPT_PATH_PLACEHOLDER|/usr/local/lib/check-certs/check-certs-pushover.sh|g" \
     -e "s|HOUR_PLACEHOLDER|7|g" \
     -e "s|MINUTE_PLACEHOLDER|0|g" \
     -e "s|LOGDIR_PLACEHOLDER|$HOME/Library/Logs/check-certs|g" \
@@ -222,14 +224,13 @@ PUSHOVER_EXPIRE=7200  # Give up after 2 hours
 check-certs --clear-state
 ```
 
-This clears all state files in the state directory at once. To clear a single file manually:
+This clears all per-host state files for all variants. To clear this variant only:
 
 ```bash
 # Linux
-> /var/lib/check-certs/state-pushover
-
+check-certs --clear-state --state-dir /var/lib/check-certs/state-pushover
 # macOS
-> "$HOME/Library/Application Support/check-certs/state-pushover"
+check-certs --clear-state --state-dir "$HOME/Library/Application Support/check-certs/state-pushover"
 ```
 
 ---

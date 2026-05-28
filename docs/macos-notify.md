@@ -48,14 +48,14 @@ The installer prompts for thresholds and run time, writes `check-certs.conf`, co
 brew install terminal-notifier
 mkdir -p ~/Library/Logs/check-certs
 
-cp src/check-certs-notify.sh ~/scripts/check-certs/
-chmod +x ~/scripts/check-certs/check-certs-notify.sh
+sudo cp src/check-certs-notify.sh /usr/local/lib/check-certs/
+sudo chmod +x /usr/local/lib/check-certs/check-certs-notify.sh
 ```
 
 Edit `check-certs.conf` to set thresholds and state file path:
 
 ```bash
-nano ~/scripts/check-certs/check-certs.conf
+nano ~/.config/check-certs/check-certs.conf
 ```
 
 ```bash
@@ -69,7 +69,7 @@ Set up the launchd job:
 
 ```bash
 sed \
-    -e "s|SCRIPT_PATH_PLACEHOLDER|$HOME/scripts/check-certs/check-certs-notify.sh|g" \
+    -e "s|SCRIPT_PATH_PLACEHOLDER|/usr/local/lib/check-certs/check-certs-notify.sh|g" \
     -e "s|HOUR_PLACEHOLDER|7|g" \
     -e "s|MINUTE_PLACEHOLDER|0|g" \
     -e "s|LOGDIR_PLACEHOLDER|$HOME/Library/Logs/check-certs|g" \
@@ -81,9 +81,11 @@ launchctl load ~/Library/LaunchAgents/com.check-certs.notify.plist
 ### Directory structure
 
 ```
-~/scripts/check-certs/
+/usr/local/lib/check-certs/
 ├── check-certs.sh               ← always present
-├── check-certs-notify.sh        ← added by this variant
+└── check-certs-notify.sh        ← added by this variant
+
+~/.config/check-certs/
 ├── check-certs.conf             ← configuration
 └── servers.conf
 
@@ -95,7 +97,7 @@ launchctl load ~/Library/LaunchAgents/com.check-certs.notify.plist
 └── check-certs-notify.error.log
 
 ~/Library/Application Support/check-certs/
-└── state
+└── state-notify/                ← per-host state files (one file per server)
 ```
 
 ---
@@ -170,7 +172,7 @@ tail -f ~/Library/Logs/check-certs/check-certs-notify.log
 **Change thresholds:** Edit `check-certs.conf`:
 
 ```bash
-nano ~/scripts/check-certs/check-certs.conf
+nano ~/.config/check-certs/check-certs.conf
 ```
 
 The relevant settings are `WARN_DAYS`, `CRIT_DAYS` and `URGENT_DAYS`.
@@ -196,10 +198,10 @@ launchctl load ~/Library/LaunchAgents/com.check-certs.notify.plist
 **Reset state:**
 
 ```bash
-# Single server
-sed -i '' '/hostname\.example\.com/d' ~/Library/Application\ Support/check-certs/state
-# All servers
-> ~/Library/Application\ Support/check-certs/state
+# All servers (forces fresh notifications on next run)
+check-certs --clear-state
+# This variant only
+check-certs --clear-state --state-dir "$HOME/Library/Application Support/check-certs/state-notify"
 ```
 
 **Remove launchd job:**

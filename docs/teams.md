@@ -116,12 +116,12 @@ your Teams channel.
 ```bash
 apt install openssl curl
 
-mkdir -p /opt/check-certs /var/lib/check-certs
-cp src/check-certs.sh /opt/check-certs/
-cp src/check-certs-teams.sh /opt/check-certs/
-cp config/servers.conf /opt/check-certs/
-chmod +x /opt/check-certs/check-certs.sh /opt/check-certs/check-certs-teams.sh
-touch /var/lib/check-certs/state-teams
+sudo mkdir -p /opt/check-certs
+sudo cp src/check-certs.sh /opt/check-certs/
+sudo cp src/check-certs-teams.sh /opt/check-certs/
+sudo cp config/servers.conf /opt/check-certs/
+sudo chmod +x /opt/check-certs/check-certs.sh /opt/check-certs/check-certs-teams.sh
+mkdir -p /var/lib/check-certs/state-teams
 ```
 
 Add to `/opt/check-certs/check-certs.conf`:
@@ -144,16 +144,15 @@ Set up the cron job:
 ```bash
 brew install openssl coreutils curl
 
-mkdir -p ~/scripts/check-certs
-cp src/check-certs.sh ~/scripts/check-certs/
-cp src/check-certs-teams.sh ~/scripts/check-certs/
-cp config/servers.conf ~/scripts/check-certs/
-chmod +x ~/scripts/check-certs/check-certs.sh ~/scripts/check-certs/check-certs-teams.sh
-mkdir -p "$HOME/Library/Application Support/check-certs"
-touch "$HOME/Library/Application Support/check-certs/state-teams"
+sudo mkdir -p /usr/local/lib/check-certs
+sudo cp src/check-certs.sh /usr/local/lib/check-certs/
+sudo cp src/check-certs-teams.sh /usr/local/lib/check-certs/
+sudo chmod +x /usr/local/lib/check-certs/check-certs.sh /usr/local/lib/check-certs/check-certs-teams.sh
+mkdir -p ~/.config/check-certs
+cp config/servers.conf ~/.config/check-certs/
 ```
 
-Add to `~/scripts/check-certs/check-certs.conf`:
+Add to `~/.config/check-certs/check-certs.conf`:
 
 ```bash
 TEAMS_WEBHOOK_URL="https://prod-xx.westeurope.logic.azure.com:443/workflows/..."
@@ -163,7 +162,7 @@ Set up the launchd job using the dedicated Teams plist:
 
 ```bash
 sed \
-    -e "s|SCRIPT_PATH_PLACEHOLDER|$HOME/scripts/check-certs/check-certs-teams.sh|g" \
+    -e "s|SCRIPT_PATH_PLACEHOLDER|/usr/local/lib/check-certs/check-certs-teams.sh|g" \
     -e "s|HOUR_PLACEHOLDER|7|g" \
     -e "s|MINUTE_PLACEHOLDER|0|g" \
     -e "s|LOGDIR_PLACEHOLDER|$HOME/Library/Logs/check-certs|g" \
@@ -231,14 +230,13 @@ TEAMS_DEBUG=true ./check-certs-teams.sh
 check-certs --clear-state
 ```
 
-To clear the state file manually:
+To clear state for this variant only:
 
 ```bash
 # Linux
-> /var/lib/check-certs/state-teams
-
+check-certs --clear-state --state-dir /var/lib/check-certs/state-teams
 # macOS
-> "$HOME/Library/Application Support/check-certs/state-teams"
+check-certs --clear-state --state-dir "$HOME/Library/Application Support/check-certs/state-teams"
 ```
 
 **Disable:**

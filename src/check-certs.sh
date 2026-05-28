@@ -2,7 +2,7 @@
 
 # ============================================================
 #  check-certs.sh – SSL certificate checker
-#  Version 2.6.2
+#  Version 2.7.2
 #
 #  STANDALONE USAGE (terminal table, macOS + Linux):
 #    check-certs [hostname[:port[:proto]]]          Terminal table (IPv6: [addr]:port[:proto])
@@ -53,7 +53,7 @@
 # ============================================================
 
 # ── Version ──────────────────────────────────────────────────
-VERSION="2.6.2"
+VERSION="2.7.2"
 
 # ── Date command ─────────────────────────────────────────────
 # macOS: gdate via coreutils; Linux: GNU date natively
@@ -70,9 +70,19 @@ fi
 total=0; errors=0; warned=0; new_issues=0; reminders=0
 
 # ── Default configuration ────────────────────────────────────
+# Config and server list locations differ by platform:
+#   macOS – scripts in /usr/local/lib/check-certs/
+#           config and servers.conf in ~/.config/check-certs/
+#   Linux – everything in /opt/check-certs/
+if [[ "$(uname)" == "Darwin" ]]; then
+    _CC_CONF_DIR="${HOME}/.config/check-certs"
+else
+    _CC_CONF_DIR="$(dirname "${BASH_SOURCE[0]}")"
+fi
+
 # Wrappers may override any of these before calling configure_wrapper,
 # or call configure_wrapper first and then override selectively.
-_CC_DEFAULTS_SERVER_FILE="$(dirname "${BASH_SOURCE[0]}")/servers.conf"
+_CC_DEFAULTS_SERVER_FILE="${_CC_CONF_DIR}/servers.conf"
 _CC_DEFAULTS_STATE_FILE=""
 _CC_DEFAULTS_TIMEOUT=5
 _CC_DEFAULTS_WARN_DAYS=15
@@ -85,9 +95,9 @@ _CC_DEFAULTS_MAX_JOBS=10
 # variable not already set. Call this after sourcing, before state_init
 # and install_escalation_hooks.
 configure_wrapper() {
-    # Load config file from the same directory as check-certs.sh
-    local conf_file
-    conf_file="$(dirname "${BASH_SOURCE[0]}")/check-certs.conf"
+    # Load check-certs.conf from the platform config directory.
+    # macOS: ~/.config/check-certs/  Linux: script directory (/opt/check-certs/)
+    local conf_file="${_CC_CONF_DIR}/check-certs.conf"
     # shellcheck source=check-certs.conf
     [ -f "$conf_file" ] && source "$conf_file"
 
@@ -820,7 +830,8 @@ _conf="$(dirname "$0")/check-certs.conf"
 unset _conf
 
 # ── Terminal defaults (only applied if not set by config) ────
-: "${SERVER_FILE:=$(dirname "$0")/servers.conf}"
+# SERVER_FILE for direct terminal use — same platform logic as the library defaults
+: "${SERVER_FILE:=${_CC_CONF_DIR}/servers.conf}"
 : "${STATE_FILE:=}"
 : "${TIMEOUT:=5}"
 : "${WARN_DAYS:=15}"
