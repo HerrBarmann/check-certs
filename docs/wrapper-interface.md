@@ -263,7 +263,7 @@ on_cert_error() {
 #### `on_cert_result`
 
 ```
-on_cert_result hostname port days_left short_date ca_name status prev_status hours_since chain_status current_ts
+on_cert_result hostname port days_left short_date ca_name status prev_status hours_since chain_status current_ts issued_date
 ```
 
 Called for every certificate that was successfully checked, regardless of
@@ -281,6 +281,7 @@ status. Invoked before the escalation logic makes its decision.
 | 8 | `hours_since` | integer | Hours elapsed since the last `deliver_finding` or `deliver_reminder` call for this host |
 | 9 | `chain_status` | string | `OK` or a chain failure description |
 | 10 | `current_ts` | integer | Unix timestamp of the current run, for use in state writes |
+| 11 | `issued_date` | string | Issuance date / `notBefore` (`Mon DD YYYY`). Appended in 2.8.0; older wrappers that ignore it are unaffected |
 
 ---
 

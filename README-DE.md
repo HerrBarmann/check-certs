@@ -332,17 +332,17 @@ check-certs --check --json api.example.com:443
 Farbcodierte Tabelle im Terminal, gruppiert nach den Abschnitten aus `servers.conf`:
 
 ```
-╔══════════════════════════════════╦════════════════════╦════════════════╦════════════════════════╦═════╗
-║ Server                           ║ Ablaufdatum        ║ Verbleibend    ║ Ausgestellt von        ║ Ch  ║
-╠══════════════════════════════════╬════════════════════╬════════════════╬════════════════════════╬═════╣
-╠  LDAP ══════════════════════════════════════════════════════════════════════════════════════════════╣
-║ ldap.example.com                 ║ Nov 20 2026        ║ ✓ 185d         ║ R11                    ║ ✓   ║
-║ ldap-dev.example.com             ║ -                  ║ ERROR          ║ Unreachable            ║     ║
-╠══════════════════════════════════╬════════════════════╬════════════════╬════════════════════════╬═════╣
-╠  Web ═══════════════════════════════════════════════════════════════════════════════════════════════╣
-║ www.example.com                  ║ Jul 14 2026        ║ ⚠ 28d          ║ GEANT TLS RSA 1        ║ ✓   ║
-║ intranet.example.com             ║ Jun 01 2026        ║ ✗ 14d          ║ GEANT TLS RSA 1        ║ ⚠   ║
-╚══════════════════════════════════╩════════════════════╩════════════════╩════════════════════════╩═════╝
+╔══════════════════════════════════╦══════════════╦══════════════╦════════════════╦════════════════════════╦═════╗
+║ Server                           ║ Ausstellung  ║ Ablauf       ║ Verbleibend    ║ Ausgestellt von        ║ Ch  ║
+╠══════════════════════════════════╬══════════════╬══════════════╬════════════════╬════════════════════════╬═════╣
+╠ LDAP ══════════════════════════════════════════════════════════════════════════════════════════════════════════╣
+║ ldap.example.com                 ║ Nov 18 2025  ║ Nov 20 2026  ║ ✓ 185d         ║ R11                    ║ ✓   ║
+║ ldap-dev.example.com             ║ -            ║ -            ║ ERROR          ║ Unreachable            ║     ║
+╠══════════════════════════════════╬══════════════╬══════════════╬════════════════╬════════════════════════╬═════╣
+╠ Web ═══════════════════════════════════════════════════════════════════════════════════════════════════════════╣
+║ www.example.com                  ║ Jul 10 2025  ║ Jul 14 2026  ║ ⚠ 28d          ║ GEANT TLS RSA 1        ║ ✓   ║
+║ intranet.example.com             ║ May 18 2025  ║ Jun 01 2026  ║ ✗ 14d          ║ GEANT TLS RSA 1        ║ ⚠   ║
+╚══════════════════════════════════╩══════════════╩══════════════╩════════════════╩════════════════════════╩═════╝
 
   Zusammenfassung:  4 Server geprüft  │  ✓ 1 OK  │  ⚠ 1 Warnung  │  ✗ 2 Kritisch/Fehler
 ```
@@ -354,7 +354,7 @@ Farbcodierte Tabelle im Terminal, gruppiert nach den Abschnitten aus `servers.co
 | 🔴 Rot | < `CRIT_DAYS` verbleibend | Handlungsbedarf |
 | 🔴 Rot / ERROR | – | Server nicht erreichbar |
 
-Die Spalte **„Ausgestellt von"** zeigt den CN-Wert aus dem Zertifikatsaussteller (z.B. `R11` für Let's Encrypt, `GEANT TLS RSA 1` für GÉANT); fehlt ein CN, wird der O-Wert verwendet. Die Spalte **Ch** zeigt `✓` wenn die vollständige Zertifikatskette gültig ist, oder `⚠` wenn ein Zwischenzertifikat fehlt oder ungültig ist. Eine defekte Kette stuft ein sonst gültiges Zertifikat auf CRITICAL hoch – das Feld `chain_status` in der `--check`-Ausgabe enthält den genauen Fehlertext.
+Die Spalte **„Ausstellung"** zeigt das Ausstellungsdatum des Zertifikats (`notBefore`), direkt neben **„Ablauf"** (`notAfter`). Die Spalte **„Ausgestellt von"** zeigt den CN-Wert aus dem Zertifikatsaussteller (z.B. `R11` für Let's Encrypt, `GEANT TLS RSA 1` für GÉANT); fehlt ein CN, wird der O-Wert verwendet. Die Spalte **Ch** zeigt `✓` wenn die vollständige Zertifikatskette gültig ist, oder `⚠` wenn ein Zwischenzertifikat fehlt oder ungültig ist. Eine defekte Kette stuft ein sonst gültiges Zertifikat auf CRITICAL hoch – das Feld `chain_status` in der `--check`-Ausgabe enthält den genauen Fehlertext.
 
 ---
 

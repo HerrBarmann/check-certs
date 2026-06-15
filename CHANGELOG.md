@@ -23,6 +23,8 @@ Bare hostnames default to port 443; `host:port`, `host:port:proto`, and IPv6 bra
 
 They appear in both key=value and `--json` output (single host and batch). Parsing is best-effort: a cert whose `notBefore` cannot be parsed leaves the fields empty rather than failing the check.
 
+**The terminal table now has an "Issued on" column.** The issuance date is shown left of the expiry column. The two date columns were slimmed from 18 to 12 characters each (a `Mon DD YYYY` date is 11 chars), so the table stays compact despite the extra column. The expiry header was renamed `Expiry date` → `Expires`. Wrappers that override `on_cert_result` are unaffected — the issuance date is passed as a new 11th positional argument after the existing 10-arg interface.
+
 ---
 
 ## 2.7.2 — 2026-05-28

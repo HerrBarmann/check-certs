@@ -504,9 +504,10 @@ _dispatch_result() {
         return
     fi
 
-    local days_left short_date ca_name status chain_status
+    local days_left short_date issued_date ca_name status chain_status
     days_left=$(_worker_field "$outfile" DAYS)
     short_date=$(_worker_field "$outfile" EXPIRY)
+    issued_date=$(_worker_field "$outfile" ISSUED)
     ca_name=$(_worker_field "$outfile" CA)
     status=$(_worker_field "$outfile" STATUS)
     chain_status=$(_worker_field "$outfile" CHAIN)
@@ -515,7 +516,8 @@ _dispatch_result() {
 
     on_cert_result \
         "$hostname" "$port" "$days_left" "$short_date" \
-        "$ca_name" "$status" "$prev_status" "$hours_since" "$chain_status" "$current_ts"
+        "$ca_name" "$status" "$prev_status" "$hours_since" "$chain_status" "$current_ts" \
+        "$issued_date"
 }
 
 # ── Server loop ──────────────────────────────────────────────
@@ -747,8 +749,9 @@ _json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
 
 hline() {
     local left=$1 mid=$2 right=$3
-    printf "%s%s%s%s%s%s%s%s%s%s%s\n" \
+    printf "%s%s%s%s%s%s%s%s%s%s%s%s%s\n" \
         "$left" "$(_repeat "$H" $((COL1+2)))" \
+        "$mid"  "$(_repeat "$H" $((COLI+2)))" \
         "$mid"  "$(_repeat "$H" $((COL2+2)))" \
         "$mid"  "$(_repeat "$H" $((COL3+2)))" \
         "$mid"  "$(_repeat "$H" $((COL4+2)))" \
@@ -759,8 +762,9 @@ hline() {
 print_group() {
     local name="$1"
     # Inner width = all column content + padding + separators between ╠ and ╣:
-    # (COL1+2) + 1 + (COL2+2) + 1 + (COL3+2) + 1 + (COL4+2) + 1 + (COL5+2)
-    local inner=$(( COL1 + COL2 + COL3 + COL4 + COL5 + 14 ))
+    # (COL1+2) +1+ (COLI+2) +1+ (COL2+2) +1+ (COL3+2) +1+ (COL4+2) +1+ (COL5+2)
+    # = sum(cols) + 2*6 padding + 5 inner separators = sum + 17
+    local inner=$(( COL1 + COLI + COL2 + COL3 + COL4 + COL5 + 17 ))
     local pad=$(( inner - ${#name} - 2 ))   # 2 = leading space + trailing space around name
     [ "$pad" -lt 0 ] && pad=0
     printf "%s ${BLUE}${BOLD}%s${NC} %s%s\n" \
@@ -770,8 +774,9 @@ print_group() {
 print_error_row() {
     local hostname="$1" reason="$2"
     local pad=$(( COL3 - 5 ))
-    printf "%s %-*s %s %-*s %s %b%-5s%b%*s %s %-*s %s %-*s %s\n" \
+    printf "%s %-*s %s %-*s %s %-*s %s %b%-5s%b%*s %s %-*s %s %-*s %s\n" \
         "$ROW_L" $COL1 "$hostname" \
+        "$ROW_M" $COLI "-" \
         "$ROW_M" $COL2 "-" \
         "$ROW_M" "$RED" "ERROR" "$NC" $pad "" \
         "$ROW_M" $COL4 "$reason" \
@@ -793,6 +798,9 @@ on_format_error() { print_error_row "$1" "Invalid format"; }
 on_cert_result() {
     local hostname="$1" port="$2" days_left="$3" short_date="$4"
     local ca_name="$5" status="$6" chain_status="${9:-OK}"
+    # Arg 11 (issued date) is appended after the documented 10-arg interface,
+    # so wrappers that only consume args 1–10 are unaffected.
+    local issued_date="${11:-}"
     local color icon text
 
     case "$status" in
@@ -815,8 +823,9 @@ on_cert_result() {
     # not display columns, so unicode symbols end up under-padded. Print the
     # symbol directly and supply explicit trailing spaces instead.
     # Cell width = COL5+2 = 5 display cols: 1 leading space + symbol + 3 spaces.
-    printf "%s %-*s %s %-*s %s %b%s%-*s%b %s %-*s %s %b%s%b   %s\n" \
+    printf "%s %-*s %s %-*s %s %-*s %s %b%s%-*s%b %s %-*s %s %b%s%b   %s\n" \
         "$ROW_L" $COL1 "$hostname" \
+        "$ROW_M" $COLI "$issued_date" \
         "$ROW_M" $COL2 "$short_date" \
         "$ROW_M" "${color}" "$icon " $((COL3-2)) "$text" "${NC}" \
         "$ROW_M" $COL4 "$ca_name" \
@@ -848,9 +857,9 @@ unset _conf
 : "${URGENT_DAYS:=2}"
 # CA_MAX_LEN for the terminal is 22, narrower than the wrapper default of 30.
 # The terminal table has a fixed column budget: COL4 = CA_MAX_LEN chars, and
-# the total table width is COL1+COL2+COL3+COL4+COL5 + separators. At 22 the
-# table fits an 80-column terminal. Wrappers (email, webhook, etc.) format
-# free-form text so they can afford the longer default without layout issues.
+# the total table width is COL1+COLI+COL2+COL3+COL4+COL5 + separators.
+# Wrappers (email, webhook, etc.) format free-form text so they can afford
+# the longer default without layout issues.
 : "${CA_MAX_LEN:=22}"
 : "${MAX_JOBS:=10}"
 
@@ -866,7 +875,10 @@ GRP_L="╠"; GRP_R="╣"
 ROW_L="║"; ROW_M="║"; ROW_R="║"
 FTR_L="╚"; FTR_M="╩"; FTR_R="╝"
 H="═"
-COL1=32; COL2=18; COL3=14; COL4=$CA_MAX_LEN; COL5=3
+COL1=32; COLI=12; COL2=12; COL3=14; COL4=$CA_MAX_LEN; COL5=3
+# COLI is the issuance-date column ("Issued"), sitting left of the expiry
+# date. Both date columns are 12 wide — a "Mon DD YYYY" date is 11 chars,
+# so 12 leaves one space of padding with no wasted width.
 # COL5 is the chain status column: ✓ (OK) or ⚠ (broken chain)
 
 ok=0; warn=0; crit=0
@@ -1492,9 +1504,10 @@ fi
 # ── Run ──────────────────────────────────────────────────────
 echo ""
 hline "$HDR_L" "$HDR_M" "$HDR_R"
-printf "%s ${BOLD}%-*s${NC} %s ${BOLD}%-*s${NC} %s ${BOLD}%-*s${NC} %s ${BOLD}%-*s${NC} %s ${BOLD}%-*s${NC} %s\n" \
+printf "%s ${BOLD}%-*s${NC} %s ${BOLD}%-*s${NC} %s ${BOLD}%-*s${NC} %s ${BOLD}%-*s${NC} %s ${BOLD}%-*s${NC} %s ${BOLD}%-*s${NC} %s\n" \
     "$ROW_L" $COL1 "Server" \
-    "$ROW_M" $COL2 "Expiry date" \
+    "$ROW_M" $COLI "Issued on" \
+    "$ROW_M" $COL2 "Expires" \
     "$ROW_M" $COL3 "Remaining" \
     "$ROW_M" $COL4 "Issued by" \
     "$ROW_M" $COL5 "Ch" \

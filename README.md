@@ -337,17 +337,17 @@ check-certs --check --json api.example.com:443
 Colour-coded table in the terminal, grouped by sections from `servers.conf`:
 
 ```
-╔══════════════════════════════════╦════════════════════╦════════════════╦════════════════════════╦═════╗
-║ Server                           ║ Expiry date        ║ Remaining      ║ Issued by              ║ Ch  ║
-╠══════════════════════════════════╬════════════════════╬════════════════╬════════════════════════╬═════╣
-╠  LDAP ══════════════════════════════════════════════════════════════════════════════════════════════╣
-║ ldap.example.com                 ║ Nov 20 2026        ║ ✓ 185d         ║ R11                    ║ ✓   ║
-║ ldap-dev.example.com             ║ -                  ║ ERROR          ║ Unreachable            ║     ║
-╠══════════════════════════════════╬════════════════════╬════════════════╬════════════════════════╬═════╣
-╠  Web ═══════════════════════════════════════════════════════════════════════════════════════════════╣
-║ www.example.com                  ║ Jul 14 2026        ║ ⚠ 28d          ║ GEANT TLS RSA 1        ║ ✓   ║
-║ intranet.example.com             ║ Jun 01 2026        ║ ✗ 14d          ║ GEANT TLS RSA 1        ║ ⚠   ║
-╚══════════════════════════════════╩════════════════════╩════════════════╩════════════════════════╩═════╝
+╔══════════════════════════════════╦══════════════╦══════════════╦════════════════╦════════════════════════╦═════╗
+║ Server                           ║ Issued on    ║ Expires      ║ Remaining      ║ Issued by              ║ Ch  ║
+╠══════════════════════════════════╬══════════════╬══════════════╬════════════════╬════════════════════════╬═════╣
+╠ LDAP ══════════════════════════════════════════════════════════════════════════════════════════════════════════╣
+║ ldap.example.com                 ║ Nov 18 2025  ║ Nov 20 2026  ║ ✓ 185d         ║ R11                    ║ ✓   ║
+║ ldap-dev.example.com             ║ -            ║ -            ║ ERROR          ║ Unreachable            ║     ║
+╠══════════════════════════════════╬══════════════╬══════════════╬════════════════╬════════════════════════╬═════╣
+╠ Web ═══════════════════════════════════════════════════════════════════════════════════════════════════════════╣
+║ www.example.com                  ║ Jul 10 2025  ║ Jul 14 2026  ║ ⚠ 28d          ║ GEANT TLS RSA 1        ║ ✓   ║
+║ intranet.example.com             ║ May 18 2025  ║ Jun 01 2026  ║ ✗ 14d          ║ GEANT TLS RSA 1        ║ ⚠   ║
+╚══════════════════════════════════╩══════════════╩══════════════╩════════════════╩════════════════════════╩═════╝
 
   Summary:  4 servers checked  │  ✓ 1 OK  │  ⚠ 1 Warning  │  ✗ 2 Critical/Error
 ```
@@ -359,7 +359,7 @@ Colour-coded table in the terminal, grouped by sections from `servers.conf`:
 | 🔴 Red | < `CRIT_DAYS` remaining | Immediate action required |
 | 🔴 Red / ERROR | – | Server unreachable |
 
-The **"Issued by"** column shows the CN value from the certificate issuer (e.g. `R11` for Let's Encrypt, `GEANT TLS RSA 1` for GÉANT), falling back to the O value if CN is absent. The **Ch** column shows `✓` when the full certificate chain is valid, or `⚠` when an intermediate CA is missing or invalid. A broken chain promotes an otherwise-OK certificate to CRITICAL — the `chain_status` field in `--check` output carries the reason string.
+The **"Issued on"** column shows the certificate's issuance date (`notBefore`), next to **"Expires"** (`notAfter`). The **"Issued by"** column shows the CN value from the certificate issuer (e.g. `R11` for Let's Encrypt, `GEANT TLS RSA 1` for GÉANT), falling back to the O value if CN is absent. The **Ch** column shows `✓` when the full certificate chain is valid, or `⚠` when an intermediate CA is missing or invalid. A broken chain promotes an otherwise-OK certificate to CRITICAL — the `chain_status` field in `--check` output carries the reason string.
 
 ---
 
