@@ -228,6 +228,7 @@ check-certs                              # Check all servers from servers.conf
 check-certs <hostname>                   # Check a single server (port defaults to 443)
 check-certs <hostname>:<port>            # Check a single server on a specific port
 check-certs <hostname>:<port>:<proto>    # Check with explicit STARTTLS protocol
+check-certs <host1> <host2> …            # Check multiple servers (batch, parallel table)
 check-certs --scan <hostname>            # Probe common TLS ports (onboarding helper)
 check-certs --list                       # List all servers without running checks
 check-certs --check                          # key=value for all servers in servers.conf
@@ -272,6 +273,8 @@ host=mail.example.com
 port=587
 proto=smtp
 days=12
+issued=Mar 03 2026
+issued_ts=1740960000
 expiry=Jun 01 2026
 expiry_ts=1748736000
 ca=Let's Encrypt
@@ -286,6 +289,8 @@ chain=OK
 | `proto` | STARTTLS protocol used (`smtp`, `ldap`, …) or `tls` for plain TLS |
 | `status` | `OK`, `WARNING`, `CRITICAL`, `URGENT`, `EXPIRED`, or `ERROR` |
 | `days` | Days until expiry (negative if already expired) |
+| `issued` | Issuance date (`notBefore`), human-readable (`Mon DD YYYY`) |
+| `issued_ts` | Issuance date as a Unix timestamp |
 | `expiry` | Expiry date, human-readable (`Mon DD YYYY`) |
 | `expiry_ts` | Expiry date as a Unix timestamp |
 | `ca` | Certificate issuer name |

@@ -2,10 +2,10 @@
 
 # ============================================================
 #  check-certs.sh – SSL certificate checker
-#  Version 2.7.2
+#  Version 2.8.0
 #
 #  STANDALONE USAGE (terminal table, macOS + Linux):
-#    check-certs [hostname[:port[:proto]]]          Terminal table (IPv6: [addr]:port[:proto])
+#    check-certs [hostname[:port[:proto]] …]        Terminal table (IPv6: [addr]:port[:proto])
 #    check-certs --check [--nagios|--json] [<host> …]  Scripting / monitoring integration
 #    check-certs --scan <hostname>                 Probe common TLS ports (onboarding helper)
 #    check-certs --list | --version | --help
@@ -53,7 +53,7 @@
 # ============================================================
 
 # ── Version ──────────────────────────────────────────────────
-VERSION="2.7.2"
+VERSION="2.8.0"
 
 # ── Date command ─────────────────────────────────────────────
 # macOS: gdate via coreutils; Linux: GNU date natively
@@ -390,7 +390,7 @@ _check_cert_worker() {
         -connect "$hostname:$port" "${sni_args[@]}" \
         "${starttls_args[@]}" \
         </dev/null 2>/dev/null \
-        | openssl x509 -noout -enddate -issuer 2>/dev/null)
+        | openssl x509 -noout -startdate -enddate -issuer 2>/dev/null)
 
     if [ -z "$cert_data" ]; then
         printf 'TYPE=ERROR\nHOST=%s\nPORT=%s\nPROTO=%s\nREASON=Unreachable\n' \
@@ -419,8 +419,9 @@ _check_cert_worker() {
     fi
 
     # ── Parse leaf cert data ─────────────────────────────────
-    local expiry_date_raw issuer_raw ca_name
+    local expiry_date_raw issued_date_raw issuer_raw ca_name
     expiry_date_raw=$(echo "$cert_data" | grep "^notAfter=" | cut -d= -f2)
+    issued_date_raw=$(echo "$cert_data" | grep "^notBefore=" | cut -d= -f2)
     issuer_raw=$(echo "$cert_data" | grep "^issuer=")
     ca_name=$(extract_ca "$issuer_raw")
 
@@ -428,6 +429,13 @@ _check_cert_worker() {
     expiry_date_clean=$(echo "$expiry_date_raw" | sed 's/ GMT$//')
     short_date=$(echo "$expiry_date_raw" | awk '{print $1, $2, $4}')
     expiry_ts=$($DATE_CMD -d "$expiry_date_clean" +%s 2>/dev/null)
+
+    # Issuance date (notBefore). Best-effort: failure to parse leaves
+    # the fields empty rather than aborting the whole check.
+    local issued_date_clean issued_short issued_ts
+    issued_date_clean=$(echo "$issued_date_raw" | sed 's/ GMT$//')
+    issued_short=$(echo "$issued_date_raw" | awk '{print $1, $2, $4}')
+    issued_ts=$($DATE_CMD -d "$issued_date_clean" +%s 2>/dev/null)
     if [ -z "$expiry_ts" ]; then
         printf 'TYPE=ERROR\nHOST=%s\nPORT=%s\nPROTO=%s\nREASON=Could not parse expiry date\n' \
             "$hostname" "$port" "$starttls_proto" > "$outfile"
@@ -457,8 +465,9 @@ _check_cert_worker() {
     # (--check --json, the Ch column) can read it directly.
     [ "$chain_status" != "OK" ] && [ "$status" = "OK" ] && status="CRITICAL"
 
-    printf 'TYPE=RESULT\nHOST=%s\nPORT=%s\nPROTO=%s\nDAYS=%s\nEXPIRY=%s\nEXPIRY_TS=%s\nCA=%s\nSTATUS=%s\nCHAIN=%s\n' \
-        "$hostname" "$port" "$starttls_proto" "$days_left" "$short_date" "$expiry_ts" \
+    printf 'TYPE=RESULT\nHOST=%s\nPORT=%s\nPROTO=%s\nDAYS=%s\nISSUED=%s\nISSUED_TS=%s\nEXPIRY=%s\nEXPIRY_TS=%s\nCA=%s\nSTATUS=%s\nCHAIN=%s\n' \
+        "$hostname" "$port" "$starttls_proto" "$days_left" "$issued_short" "$issued_ts" \
+        "$short_date" "$expiry_ts" \
         "$ca_name" "$status" "$chain_status" > "$outfile"
 }
 
@@ -874,7 +883,7 @@ if [[ "$1" == "--help" || "$1" == "-h" ]]; then
     printf "\n"
     printf "${BOLD}Usage:${NC}\n"
     printf "  ${CYAN}check-certs${NC}                              Check all servers from servers.conf\n"
-    printf "  ${CYAN}check-certs${NC} <host>[:<port>[:<proto>]]   Check a single server (terminal table)\n"
+    printf "  ${CYAN}check-certs${NC} <host>[:<port>[:<proto>]] …  Check one or more servers (terminal table)\n"
     printf "  ${CYAN}check-certs --check${NC} [<host> …]\n"
     printf "                                           key=value; no args = servers.conf, one arg = single host, multiple = batch\n"
     printf "  ${CYAN}check-certs --check --nagios${NC} <host>[:<port>] …\n"
@@ -1111,10 +1120,12 @@ fi
 _ch_print_record() {
     local tmpfile="$1" mode="$2"
 
-    local type status days expiry expiry_ts ca chain reason proto_out
+    local type status days issued issued_ts expiry expiry_ts ca chain reason proto_out
     type=$(_worker_field "$tmpfile" TYPE)
     status=$(_worker_field "$tmpfile" STATUS)
     days=$(_worker_field "$tmpfile" DAYS)
+    issued=$(_worker_field "$tmpfile" ISSUED)
+    issued_ts=$(_worker_field "$tmpfile" ISSUED_TS)
     expiry=$(_worker_field "$tmpfile" EXPIRY)
     expiry_ts=$(_worker_field "$tmpfile" EXPIRY_TS)
     ca=$(_worker_field "$tmpfile" CA)
@@ -1207,6 +1218,10 @@ _ch_print_record() {
 '       "$(_json_escape "$status")"
             printf '  "days": %s,
 '           "$days"
+            printf '  "issued": "%s",
+'       "$(_json_escape "$issued")"
+            printf '  "issued_ts": %s,
+'      "${issued_ts:-null}"
             printf '  "expiry": "%s",
 '       "$(_json_escape "$expiry")"
             printf '  "expiry_ts": %s,
@@ -1488,16 +1503,27 @@ hline "$MID_L" "$MID_M" "$MID_R"
 
 _first_group=true
 
-if [ $# -eq 1 ] && [[ "$1" != --* ]]; then
-    local_host="$1"; local_port="443"; local_proto=""
-    parse_hostspec "$1" local_host local_port local_proto || true
+if [ $# -ge 1 ] && [[ "$1" != --* ]]; then
+    # One or more hostspecs given as arguments → check exactly those
+    # hosts (batch). Bare hostnames default to port 443; host:port and
+    # host:port:proto (plus IPv6 bracket notation) are written through
+    # unchanged. We build a temp servers.conf so the same parallel
+    # worker pool (run_server_loop) handles single- and multi-host runs.
     _tmpconf=$(mktemp)
     trap 'rm -f "$_tmpconf"' EXIT
-    if [ -n "$local_proto" ]; then
-        echo "${local_host}:${local_port}:${local_proto}" > "$_tmpconf"
-    else
-        echo "${local_host}:${local_port}" > "$_tmpconf"
-    fi
+    for _targ in "$@"; do
+        local_host="" local_port="" local_proto=""
+        if parse_hostspec "$_targ" local_host local_port local_proto; then
+            if [ -n "$local_proto" ]; then
+                printf '%s:%s:%s\n' "$local_host" "$local_port" "$local_proto" >> "$_tmpconf"
+            else
+                printf '%s:%s\n' "$local_host" "$local_port" >> "$_tmpconf"
+            fi
+        else
+            # No port → treat as bare hostname, default to 443.
+            printf '%s:443\n' "$_targ" >> "$_tmpconf"
+        fi
+    done
     run_server_loop "$_tmpconf"
     rm -f "$_tmpconf"; trap - EXIT
 else

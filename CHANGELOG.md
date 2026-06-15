@@ -4,6 +4,27 @@ All notable changes to check-certs are documented here.
 
 ---
 
+## 2.8.0 — 2026-06-15
+
+### Feature
+
+**Terminal mode now accepts multiple hosts (batch).** Previously `check-certs host1 host2 host3` silently ignored the extra arguments and fell back to checking every server in `servers.conf`. The plain terminal table now checks exactly the hosts given on the command line, in parallel — matching the batch behaviour `--check` already had:
+
+```bash
+check-certs api.example.com mail.example.com:587 ldap.example.com:636:ldap
+```
+
+Bare hostnames default to port 443; `host:port`, `host:port:proto`, and IPv6 bracket notation (`[addr]:port`) are accepted unchanged. Single-host and no-argument (`servers.conf`) behaviour is unchanged.
+
+**`--check` now reports the certificate issuance date.** Output gains two fields alongside the existing expiry fields:
+
+- `issued` — issuance date (`notBefore`), human-readable (`Mon DD YYYY`)
+- `issued_ts` — issuance date as a Unix timestamp
+
+They appear in both key=value and `--json` output (single host and batch). Parsing is best-effort: a cert whose `notBefore` cannot be parsed leaves the fields empty rather than failing the check.
+
+---
+
 ## 2.7.2 — 2026-05-28
 
 ### Bug fix
